@@ -1,3 +1,4 @@
+import { animateRadar, clearRadarMotion } from "./motion.js";
 import { api, setToken, hasSession, download } from "./api.js";
 import {
   esc,
@@ -150,6 +151,7 @@ async function render({ background = false } = {}) {
         ? [focused.selectionStart, focused.selectionEnd]
         : null;
     const scroll = [window.scrollX, window.scrollY];
+    clearRadarMotion();
     main.innerHTML = html;
     if (retainedProfile && main.querySelector("#profile-form"))
       main.querySelector("#profile-form").replaceWith(retainedProfile);
@@ -158,6 +160,7 @@ async function render({ background = false } = {}) {
     lastPage = page;
     lastHtml = html;
     bind();
+    if (page === "radar" && !background) animateRadar(main);
     updateComparisonSelection();
     if (focused) {
       focused.focus({ preventScroll: true });
@@ -754,6 +757,7 @@ async function loadMore() {
     batch.innerHTML = result.items.map((p) => card(p, state.compare)).join("");
     main.querySelector("#radar-list").append(batch);
     bind(batch);
+    animateRadar(batch);
     radarLoaded += result.items.length;
     radarTotal = result.total;
     state.page++;
