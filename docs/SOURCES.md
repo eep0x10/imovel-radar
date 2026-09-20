@@ -26,6 +26,6 @@ A amostra padrão cobre até três páginas, com teto de vinte. A cobertura perm
 
 ### Fase do imóvel
 
-No Radar, use **Fase do imóvel** para selecionar **Na planta**, **Em construção**, **Pronto para morar** ou **Fase não informada**. O filtro combina com a busca, favoritos e paginação. A ausência de informação não significa imóvel pronto.
+No Radar, use **Fase do imóvel** para selecionar **Pronto** ou **Na planta / em construção**. O filtro combina com a busca, favoritos e paginação. Sem indicação de planta ou obra, a regra do produto classifica como pronto; confirme a condição na fonte.
 
-Importações JSON/CSV podem informar `construction_status` como `off_plan`, `under_construction`, `ready` ou `unknown`. Sem campo explícito, somente expressões claras no título são reconhecidas; “novo”, “lançamento” e “planta ampla” não comprovam a fase. O filtro não amplia automaticamente a cobertura dos coletores nem transforma anúncios agregados de empreendimentos em unidades individuais.
+Importações JSON/CSV podem informar `construction_status` como `off_plan`, `under_construction`, `ready` ou `unknown`. `off_plan` e `under_construction` são agrupados como `under_construction`; ausência de fase e `unknown` passam a `ready`. Sem campo explícito válido, expressões claras no título ou descrição são reconhecidas; “novo”, “lançamento” e “planta ampla” não comprovam a fase. O filtro não amplia automaticamente a cobertura dos coletores nem transforma anúncios agregados de empreendimentos em unidades individuais.

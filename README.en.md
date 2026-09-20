@@ -18,7 +18,7 @@ Set your preferences, enable QuintoAndar, Loft, VivaReal and OLX in Sources, and
 
 ## Evidence before conclusions
 
-Quality, personal fit and asking-price opportunity are separate scores. Missing values remain unknown. Price comparisons require recent comparable listings and show sample confidence. Asking prices are not completed transactions. Monthly costs never assume an unknown tax period.
+Quality, personal fit and asking-price opportunity are separate scores. Missing values remain unknown except construction phase: listings without an explicit indication of planning or ongoing construction default to Ready. Price comparisons require recent comparable listings and show sample confidence. Asking prices are not completed transactions. Monthly costs never assume an unknown tax period.
 
 Accounts have isolated listings, favorites, visits, notes and assessments. SQLite online snapshots and restore checks support local ownership of data. Credentials belong in ignored local environment files. Personal spreadsheets and databases are not distributed.
 
@@ -30,4 +30,8 @@ Independent project, unaffiliated with listing portals. Email password recovery,
 
 ## Integrated Radar and saved-search notifications
 
-Filters live directly in Radar and save automatically. Compare listings in a dialog without leaving the results, save favorites in My journey, and create a notification rule from the current search. Existing matches establish a baseline; only new matches produce notifications, without duplicates on repeated imports. Each rule keeps its own criteria snapshot. Account details, sources, imports and diagnostics are grouped in Settings.
+Filters live directly in Radar and save automatically. Compare listings in a dialog without leaving the results, save favorites in Radar → Saved, and create a notification rule from the current search. Existing matches establish a baseline; only new matches produce notifications, without duplicates on repeated imports. Each rule keeps its own criteria snapshot. Account details, sources, imports and diagnostics are grouped in Settings.
+
+## Phase and price history
+
+Radar groups phases as **Ready** and **Off-plan / under construction**. Ready is the default classification when no phase is supplied, not proof of handover or occupancy. Cards show the latest observed price increase or decrease within 30 days, including previous price, amount and observation date. Metadata refreshes do not reset this window.
