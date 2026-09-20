@@ -1,6 +1,7 @@
 """Bounded, side-effect free listing imports and public, DNS-pinned feeds."""
 from __future__ import annotations
 import csv
+from .construction import construction_status
 import hashlib
 import http.client
 import io
@@ -122,6 +123,7 @@ def _normalize(raw):
     else:
         observed = None
     record['observed_at'] = observed
+    record['construction_status'] = construction_status(data)
     record['tax_period'] = data.get('tax_period') if data.get('tax_period') in ('monthly', 'annual') else 'unknown'
     kind = str(data.get('property_type') or '').lower()
     record['property_type'] = {'apartamento': 'apartment', 'apartment': 'apartment', 'residential / apartment': 'apartment', 'casa': 'house', 'house': 'house', 'studio': 'studio', 'kitnet': 'studio'}.get(kind)

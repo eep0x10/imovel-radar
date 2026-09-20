@@ -10,7 +10,7 @@ import sqlite3
 from contextlib import asynccontextmanager, closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
@@ -165,6 +165,7 @@ def put_profile(payload: Profile, user: User):
 
 @app.get("/api/properties")
 def properties(user: User, q: str = Query(default="", max_length=200), sort: str = "fit", saved: bool = False, drops: bool = False,
+               construction: Literal["all", "off_plan", "under_construction", "ready", "unknown"] = "all",
                apply_profile: bool = False, page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=100)):
     with closing(storage.connect()) as conn:
         items = enrich_all(conn, user["id"])
@@ -173,6 +174,7 @@ def properties(user: User, q: str = Query(default="", max_length=200), sort: str
         "price_drops": sum((p["price_change"] or 0) < 0 for p in items), "saved": sum(p["saved"] for p in items)}
     last_updated = max((p["imported_at"] for p in items), default=None)
     filtered = [p for p in items if (not saved or p["saved"]) and (not drops or (p["price_change"] or 0) < 0)
+        and (construction == "all" or p["construction_status"] == construction)
         and (not apply_profile or p["evaluation"]["eligible"])
         and (not q or q.casefold() in " ".join(str(p.get(k) or "") for k in ("title", "address", "neighborhood", "city", "source")).casefold())]
     if sort == "price":

@@ -23,3 +23,9 @@ Detalhes do QuintoAndar preservam faixas de andar, com cache de sete dias, até 
 Os coletores consultam páginas públicas sem cookies, login ou proxies. VivaReal publica anúncios em JSON-LD; OLX publica dados estruturados no HTML renderizado pelo servidor. Anúncios agregados de lançamentos não são tratados como apartamentos individuais. Preços na URL do VivaReal são expressos em reais inteiros, preservando filtros nas páginas seguintes; a comparação local aplica os limites exatos do perfil.
 
 A amostra padrão cobre até três páginas, com teto de vinte. A cobertura permanece parcial. Anúncios sem coordenadas não têm correspondência geográfica garantida com seus limites de mapa; isso aparece nos avisos. Banheiros, vagas e impostos não publicados permanecem desconhecidos. Erros HTTP403/500 ou mudança de estrutura preservam o snapshot anterior e são registrados, sem tentativas de contorno.
+
+### Fase do imóvel
+
+No Radar, use **Fase do imóvel** para selecionar **Na planta**, **Em construção**, **Pronto para morar** ou **Fase não informada**. O filtro combina com a busca, favoritos e paginação. A ausência de informação não significa imóvel pronto.
+
+Importações JSON/CSV podem informar `construction_status` como `off_plan`, `under_construction`, `ready` ou `unknown`. Sem campo explícito, somente expressões claras no título são reconhecidas; “novo”, “lançamento” e “planta ampla” não comprovam a fase. O filtro não amplia automaticamente a cobertura dos coletores nem transforma anúncios agregados de empreendimentos em unidades individuais.

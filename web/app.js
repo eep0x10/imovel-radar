@@ -27,6 +27,7 @@ const state = {
   sourceResults: {},
   q: "",
   sort: "fit",
+  construction: "all",
   tab: "all",
   apply: false,
   page: 1,
@@ -115,6 +116,7 @@ async function radar() {
   const params = new URLSearchParams({
     q: state.q,
     sort: state.sort,
+    construction: state.construction,
     saved: state.tab === "saved",
     drops: state.tab === "drops",
     apply_profile: state.apply,
@@ -164,7 +166,20 @@ async function radar() {
       )
       .join(
         "",
-      )}</select><button>Buscar</button></form><label class="small"><input id="apply-profile" type="checkbox" ${state.apply ? "checked" : ""}> Aplicar minha busca</label><p class="listing-count">${r.total} imóveis · atualização: ${date(r.last_updated)}</p>${r.items.length ? r.items.map((p) => card(p, state.compare)).join("") : `<div class="empty"><h3>${state.q || state.apply || state.tab !== "all" ? "Nenhum imóvel nesses filtros" : "Seu radar está pronto para começar"}</h3><p>${state.q || state.apply || state.tab !== "all" ? "Experimente outra busca ou limpe os filtros para ver os demais anúncios." : "Configure a coleta dos portais em Fontes e atualização para trazer anúncios reais ao radar. Você também pode importar um arquivo ou conectar um feed."}</p><a href="#sources">Configurar coleta e fontes →</a><p><button data-reset>Limpar filtros</button></p></div>`}<div class="pagination"><button data-page="${state.page - 1}" ${state.page <= 1 ? "disabled" : ""}>Anterior</button><span>Página ${state.page} de ${Math.max(1, Math.ceil(r.total / 20))}</span><button data-page="${state.page + 1}" ${state.page * 20 >= r.total ? "disabled" : ""}>Próxima</button></div></section><aside class="rail"><div class="daily"><p class="eyebrow">SUA DECISÃO, COM CONTEXTO</p><h2>Preço bom precisa de evidência.</h2><p>Avaliação de qualidade, aderência pessoal e preço relativo são medidas diferentes. Poucos comparáveis? A estimativa fica pendente.</p><a href="#alerts">Ver mudanças e alertas →</a></div><div class="panel"><h3>Uma busca com sua cara</h3><div class="check-row"><span>Orçamento</span><b>${money(state.profile.budget_max)}</b></div><div class="check-row"><span>Área mínima</span><b>${number(state.profile.area_min)} m²</b></div><a href="#profile">Editar preferências →</a></div><div class="subtle">Anúncios importados não se atualizam sozinhos. Em Fontes e atualização, confira quais coletas estão ativas, suas falhas e a saúde da rotina diária.</div></aside></div>`
+      )}</select><select name="construction" aria-label="Fase do imóvel">${[
+      ["all", "Todas as fases"],
+      ["off_plan", "Na planta"],
+      ["under_construction", "Em construção"],
+      ["ready", "Pronto para morar"],
+      ["unknown", "Fase não informada"],
+    ]
+      .map(
+        ([id, label]) =>
+          `<option value="${id}" ${state.construction === id ? "selected" : ""}>${label}</option>`,
+      )
+      .join(
+        "",
+      )}</select><button>Buscar</button></form><p class="small">Fase conforme informada no anúncio. Sem evidência, o imóvel fica como fase não informada.</p><label class="small"><input id="apply-profile" type="checkbox" ${state.apply ? "checked" : ""}> Aplicar minha busca</label><p class="listing-count">${r.total} imóveis · atualização: ${date(r.last_updated)}</p>${r.items.length ? r.items.map((p) => card(p, state.compare)).join("") : `<div class="empty"><h3>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum imóvel nesses filtros" : "Seu radar está pronto para começar"}</h3><p>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Experimente outra busca ou limpe os filtros para ver os demais anúncios." : "Configure a coleta dos portais em Fontes e atualização para trazer anúncios reais ao radar. Você também pode importar um arquivo ou conectar um feed."}</p><a href="#sources">Configurar coleta e fontes →</a><p><button data-reset>Limpar filtros</button></p></div>`}<div class="pagination"><button data-page="${state.page - 1}" ${state.page <= 1 ? "disabled" : ""}>Anterior</button><span>Página ${state.page} de ${Math.max(1, Math.ceil(r.total / 20))}</span><button data-page="${state.page + 1}" ${state.page * 20 >= r.total ? "disabled" : ""}>Próxima</button></div></section><aside class="rail"><div class="daily"><p class="eyebrow">SUA DECISÃO, COM CONTEXTO</p><h2>Preço bom precisa de evidência.</h2><p>Avaliação de qualidade, aderência pessoal e preço relativo são medidas diferentes. Poucos comparáveis? A estimativa fica pendente.</p><a href="#alerts">Ver mudanças e alertas →</a></div><div class="panel"><h3>Uma busca com sua cara</h3><div class="check-row"><span>Orçamento</span><b>${money(state.profile.budget_max)}</b></div><div class="check-row"><span>Área mínima</span><b>${number(state.profile.area_min)} m²</b></div><a href="#profile">Editar preferências →</a></div><div class="subtle">Anúncios importados não se atualizam sozinhos. Em Fontes e atualização, confira quais coletas estão ativas, suas falhas e a saúde da rotina diária.</div></aside></div>`
   );
 }
 async function detail(id) {
@@ -177,6 +192,15 @@ async function detail(id) {
     `<div class="dialog-header"><div><p class="eyebrow">DOSSIÊ DO IMÓVEL</p><h2>${esc(listingTitle(p))}</h2></div><button data-close aria-label="Fechar dossiê">×</button></div><div class="detail-grid"><div>${photo(p)}${!p.observed_at ? '<span class="tag amber">Data não confirmada</span>' : ""}<p>${esc(p.address)} · ${esc(p.neighborhood)} · ${esc(p.city)}</p><div class="features">${[
       ["Área", `${number(p.area)} m²`],
       ["Quartos", number(p.bedrooms)],
+      [
+        "Fase do imóvel",
+        {
+          off_plan: "Na planta",
+          under_construction: "Em construção",
+          ready: "Pronto para morar",
+          unknown: "Não informada",
+        }[p.construction_status] || "Não informada",
+      ],
       ["Vagas", number(p.parking)],
       [
         "Andar",
@@ -568,6 +592,7 @@ function bind(root = main) {
     (b) =>
       (b.onclick = () => {
         state.q = "";
+        state.construction = "all";
         state.apply = false;
         state.tab = "all";
         state.page = 1;
@@ -672,6 +697,7 @@ function bind(root = main) {
     const f = new FormData(e.target);
     state.q = f.get("q");
     state.sort = f.get("sort");
+    state.construction = f.get("construction");
     state.page = 1;
     render();
   });

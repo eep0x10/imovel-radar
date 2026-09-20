@@ -109,7 +109,9 @@ def dumps(value):
 
 
 def load_property(row):
+    from .construction import construction_status
     value = json.loads(row["data"])
+    value["construction_status"] = construction_status(value)
     value.update(id=row["id"], source=row["source"], external_id=row["external_id"],
         first_seen=row["first_seen"], last_seen=row["last_seen"], imported_at=row["imported_at"],
         canonical_key=row["canonical_key"])
