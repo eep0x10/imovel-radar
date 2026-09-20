@@ -276,11 +276,6 @@ def refresh_source(user_id, source_id, search_profile=None):
             details = enrich_quinto_details(records)
             records = details["records"]
             parsed.setdefault("warnings", []).extend(details["warnings"])
-            from .location_enrichment import enrich_records
-            enriched = enrich_records(records, search_profile)
-            records = enriched["records"]
-            parsed.setdefault("warnings", []).extend(enriched["warnings"])
-            parsed["enrichment"] = {key: value for key, value in enriched.items() if key not in {"records", "warnings"}}
         with storage.transaction() as conn:
             result = ingest(conn, user_id, records, source["kind"], source_id)
             result["coverage"] = parsed.get("coverage")

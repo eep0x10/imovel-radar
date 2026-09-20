@@ -1,10 +1,9 @@
-"""Resume missing walking routes independently of property recollection."""
+"""Walking routes are calculated only upon an explicit listing request."""
 from datetime import datetime, timedelta, timezone
 import json
 import os
-from .sale_scope import rental_listing
 from . import storage
-from .location_enrichment import _cache_key, _coordinates, enrich_records as google_enrich
+from .location_enrichment import _cache_key, enrich_records as google_enrich
 from .services import acquire_lock, release_lock
 
 FIELDS = ("metro_minutes", "metro_station", "metro_distance_meters", "metro_checked_at", "metro_route_mode", "metro_route_source", "metro_candidate_limit", "metro_status", "metro_message", "metro_candidate_station", "metro_station_coverage")
@@ -31,66 +30,61 @@ def preserve_route(record, previous):
                 provenance[key] = previous["provenance"][key]
 
 
-def cycle(limit=3):
-    owner = acquire_lock("metro-enrichment", minutes=10)
+def calculate(user_id, property_id):
+    """Calculate and persist only the explicitly requested listing, never a batch."""
+    from fastapi import HTTPException
+    with storage.connect() as conn:
+        row = conn.execute("SELECT data FROM properties WHERE id=? AND user_id=?", (property_id, user_id)).fetchone()
+    if not row:
+        raise HTTPException(404, "Imóvel não encontrado")
+    lock = f"metro-property:{user_id}:{property_id}"
+    owner = acquire_lock(lock, minutes=10)
     if not owner:
-        return {"status": "busy", "enriched": 0}
+        raise HTTPException(409, "A rota deste imóvel já está sendo calculada. Aguarde e tente novamente.")
     try:
-        now = datetime.now(timezone.utc)
         with storage.connect() as conn:
-            rows = conn.execute("SELECT id,user_id,data FROM properties ORDER BY id DESC").fetchall()
-            attempts = {row[0]: row[1] for row in conn.execute("SELECT key,value FROM runtime WHERE key LIKE 'metro-retry:%'")}
-        candidates = []
-        for row in rows:
-            record = json.loads(row["data"])
-            if rental_listing(record) or fresh(record) or record.get("status") in ("sold", "inactive", "unavailable"):
-                continue
-            previous = attempts.get(f"metro-retry:{row['id']}")
-            if previous and previous > now.isoformat():
-                continue
-            candidates.append((previous or "", row, record))
-        candidates.sort(key=lambda entry: (entry[0], _coordinates(entry[2]) is None))
-        chosen = candidates[:max(1,min(20,limit))]
-        if not chosen:
-            return {"status": "waiting", "enriched": 0}
-        records = [dict(item[2]) for item in chosen]
-        for record in records:
-            if record.get("metro_checked_at") and not fresh(record):
-                for key in FIELDS:
-                    record.pop(key, None)
-        result = google_enrich(records, {})
-        from .osm_walking import enrich_records
-        if os.getenv("IMOVEL_METRO_PROVIDER") != "osm":
-            result = enrich_records(result["records"], {})
-        enriched = 0
+            row = conn.execute("SELECT data FROM properties WHERE id=? AND user_id=?", (property_id, user_id)).fetchone()
+        if not row:
+            raise HTTPException(404, "Imóvel não encontrado")
+        original = json.loads(row[0])
+        if fresh(original):
+            return {"property_id": property_id, **{key: original.get(key) for key in FIELDS}, "metro_status": "ready", "cached": True}
+        record = json.loads(row[0])
+        for key in FIELDS:
+            record.pop(key, None)
+        try:
+            result = google_enrich([record], {})
+            if os.getenv("IMOVEL_METRO_PROVIDER") != "osm":
+                from .osm_walking import enrich_records
+                result = enrich_records(result["records"], {})
+            updated = result["records"][0]
+        except Exception:
+            updated = {"metro_status": "pending", "metro_message": "Não foi possível calcular a caminhada agora. Tente novamente pelo botão."}
         with storage.transaction() as conn:
-            for (_, row, original), updated in zip(chosen, result["records"]):
-                current_row = conn.execute("SELECT data FROM properties WHERE id=? AND user_id=?", (row["id"],row["user_id"])).fetchone()
-                if not current_row:
-                    continue
-                current = json.loads(current_row[0])
-                if _cache_key(current)[0] != _cache_key(original)[0]:
-                    continue
-                if current.get("metro_checked_at") and not fresh(current):
-                    for key in FIELDS:
-                        current.pop(key, None)
-                for key in FIELDS:
-                    if key in updated:
-                        current[key] = updated[key]
-                for key in ("latitude", "longitude"):
-                    if current.get(key) is None and updated.get(key) is not None:
-                        current[key] = updated[key]
-                current.setdefault("provenance", {}).update({k:v for k,v in (updated.get("provenance") or {}).items() if k in FIELDS or k in ("latitude","longitude")})
-                if fresh(current):
-                    current["metro_status"] = "ready"
-                    current.pop("metro_message", None)
-                    enriched += 1
-                else:
-                    current.setdefault("metro_status", "pending")
-                    current.setdefault("metro_message", "Caminhada pendente; aguardando localização precisa ou serviço de rotas.")
-                conn.execute("UPDATE properties SET data=? WHERE id=? AND user_id=?", (storage.dumps(current),row["id"],row["user_id"]))
-                retry = now + (timedelta(days=1) if current.get("metro_status") in ("coordinates_missing", "daily_limit", "ready") else timedelta(minutes=15))
-                conn.execute("INSERT INTO runtime(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (f"metro-retry:{row['id']}",retry.isoformat()))
-        return {"status": "completed", "enriched": enriched, "processed":len(chosen), "warnings":result.get("warnings",[])}
+            row = conn.execute("SELECT data FROM properties WHERE id=? AND user_id=?", (property_id, user_id)).fetchone()
+            if not row:
+                raise HTTPException(404, "Imóvel não encontrado")
+            current = json.loads(row[0])
+            if _cache_key(current)[0] != _cache_key(original)[0]:
+                raise HTTPException(409, "A localização do imóvel mudou. Calcule a rota novamente.")
+            for key in FIELDS:
+                current.pop(key, None)
+                if key in updated:
+                    current[key] = updated[key]
+            for key in ("latitude", "longitude"):
+                if current.get(key) is None and updated.get(key) is not None:
+                    current[key] = updated[key]
+            provenance = current.setdefault("provenance", {})
+            for key in FIELDS:
+                provenance.pop(key, None)
+            provenance.update({k: v for k, v in (updated.get("provenance") or {}).items() if k in FIELDS or k in ("latitude", "longitude")})
+            if fresh(current):
+                current["metro_status"] = "ready"
+                current.pop("metro_message", None)
+            else:
+                current.setdefault("metro_status", "pending")
+                current.setdefault("metro_message", "Caminhada não calculada. Confira a localização e tente novamente pelo botão.")
+            conn.execute("UPDATE properties SET data=? WHERE id=? AND user_id=?", (storage.dumps(current), property_id, user_id))
+        return {"property_id": property_id, **{key: current.get(key) for key in FIELDS}, "cached": False}
     finally:
-        release_lock("metro-enrichment", owner)
+        release_lock(lock, owner)

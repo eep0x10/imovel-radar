@@ -1616,3 +1616,18 @@ dialog[data-mode="compare"] {
     min-height: 44px;
   }
 }
+
+.metro-block {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+.metro-block button {
+  min-height: 44px;
+  white-space: normal;
+}
+.metro-block small {
+  display: block;
+}

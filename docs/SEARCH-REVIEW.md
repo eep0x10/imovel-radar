@@ -52,3 +52,12 @@ Mantida a apresentação existente. Cartões e comparação exibem tempo a pé e
 Validação real: sete anúncios no Largo São José do Maranhão receberam rota a pé de 1.316 m / 17,55 min até Carrão – Assaí Atacadista, reutilizando um cálculo em três estações candidatas. Catálogo inicial OSM contém 64 estações por nós, com cobertura explicitamente parcial; a consulta completa de nós/vias/relações sofreu indisponibilidade. Resultados dessa base recebem qualificação de cobertura parcial. Isso não garante a estação absolutamente mais próxima fora do catálogo. Desktop e 390px verificados em base QA isolada com estado calculado e pendente, sem erros de console.
 
 Validação: 296 testes passaram; verificações focadas da fila e do provedor foram repetidas após o ajuste de prioridade. Banco manteve 1.009 imóveis e 1.408 observações com integrity_check=ok. API local saudável na versão 1.5.2 e worker ativo.
+
+
+## Rotas sob demanda — 1.5.3
+
+A pedido do usuário, a fila automática foi retirada. Coletas e rotina diária não chamam serviços de caminhada. Cada cartão e dossiê oferece Calcular rota até o metrô: feedback de carregamento imediato, botão desativado durante a consulta e troca somente do bloco de rota daquele imóvel. Cache válido evita consultas repetidas; os demais anúncios não são gravados, mesmo na mesma coordenada. Falhas e limites permitem nova tentativa manual. Autenticação, propriedade do anúncio, lock por imóvel e verificação da localização antes da gravação protegem a operação concorrente.
+
+Estilo mantido, sem prévia de redesign. Carregamento textual acessível por aria-live e aria-busy; nenhuma animação bloqueia a operação. Anime.js existente permanece nos resultados; cálculo não redesenha a lista nem interfere em formulário ou scroll.
+
+QA: 299 testes aprovados. Navegador integrado demonstrou carregamento em um único cartão, resultado de 12,5 min na fixture escolhida e três imóveis vizinhos sem rota, mesmo com coordenadas iguais. Desktop e 390 px inspecionados; console sem erros.

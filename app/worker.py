@@ -90,8 +90,6 @@ def main():
             from . import search_jobs, alert_collection
             search_jobs.process_pending()
             alert_collection.cycle()
-            from . import metro_jobs
-            metro_jobs.cycle()
             result = cycle(touch_heartbeat=True)
             if result["results"]:
                 log.info("cycle=%s sources=%d", result["status"], len(result["results"]))

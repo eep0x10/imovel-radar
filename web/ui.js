@@ -72,10 +72,12 @@ export function priceChange(p) {
 export function metroText(p) {
   if (p.metro_minutes != null && p.metro_station)
     return `${number(p.metro_minutes)} min a pé · ${p.metro_station}${p.metro_station_coverage === "partial" ? " (estações mapeadas; cobertura parcial)" : ""}`;
-  return p.metro_message || "Caminhada até o metrô pendente";
+  return p.metro_message || "Rota até o metrô ainda não calculada";
 }
+export const metroPending = new Set();
 export function metroInfo(p) {
-  return `<span>${esc(metroText(p))}</span>${p.metro_route_source?.includes("OSM") || p.metro_route_source?.includes("OpenStreetMap") ? `<small>Rotas: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener noreferrer">FOSSGIS</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener noreferrer">Corrigir mapa</a></small>` : ""}`;
+  const loading = metroPending.has(Number(p.id));
+  return `<span class="metro-block" data-metro-slot="${Number(p.id)}" aria-live="polite" aria-busy="${loading}"><span>${loading ? "Calculando caminhada até o metrô…" : esc(metroText(p))}</span><button type="button" data-metro="${Number(p.id)}" ${loading ? "disabled" : ""}>${loading ? "Calculando rota…" : "Calcular rota até o metrô"}</button>${p.metro_route_source?.includes("OSM") || p.metro_route_source?.includes("OpenStreetMap") ? `<small>Rotas: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener noreferrer">FOSSGIS</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener noreferrer">Corrigir mapa</a></small>` : ""}</span>`;
 }
 export function card(p, compare) {
   const e = p.evaluation || {};

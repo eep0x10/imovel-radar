@@ -196,7 +196,7 @@ def enrich_records(records, profile=None):
                     _cooldown(phase)
                     reason = 'provider_unavailable'
             record['metro_status'] = reason
-            record['metro_message'] = {'coordinates_missing': 'Localização precisa indisponível para calcular o trajeto.', 'daily_limit': 'Cálculo a pé pendente: limite diário do serviço público atingido.', 'rate_limit': 'Cálculo a pé aguardando a próxima consulta.', 'no_walking_route': 'Nenhuma rota a pé disponível para as estações candidatas.'}.get(reason, 'Serviço de rotas temporariamente indisponível; nova tentativa automática.')
+            record['metro_message'] = {'coordinates_missing': 'Localização precisa indisponível para calcular o trajeto.', 'daily_limit': 'Cálculo a pé pendente: limite diário do serviço público atingido.', 'rate_limit': 'Cálculo a pé aguardando a próxima consulta.', 'no_walking_route': 'Nenhuma rota a pé disponível para as estações candidatas.'}.get(reason, 'Serviço de rotas temporariamente indisponível; tente novamente pelo botão.')
             if record['metro_message'] not in result['warnings']:
                 result['warnings'].append(record['metro_message'])
     return result

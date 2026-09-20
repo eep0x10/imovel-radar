@@ -7,6 +7,8 @@ import {
   money,
   number,
   metroText,
+  metroInfo,
+  metroPending,
   date,
   link,
   header,
@@ -330,7 +332,7 @@ async function detail(id) {
       ...(p.occupied != null
         ? [["Ocupação", p.occupied ? "Ocupado" : "Desocupado"]]
         : []),
-      ["Metrô a pé", esc(metroText(p))],
+
       [
         "Elevador",
         p.elevator == null ? "Não informado" : p.elevator ? "Sim" : "Não",
@@ -339,7 +341,7 @@ async function detail(id) {
       .map(([l, v]) => `<span>${l}: ${v}</span>`)
       .join(
         "",
-      )}</div><section class="panel"><h3>Histórico de preço</h3><div class="timeline">${(p.history || []).map((h) => `<div><span>Observado: ${date(h.observed_at)}<br>Registrado: ${date(h.recorded_at)}</span><b>${money(h.price)}</b></div>`).join("") || "<p>Ainda sem histórico.</p>"}</div></section><section class="panel"><h3>Dados pendentes</h3><ul>${[...(e.missing || []), ...(e.pending_requirements || [])].map((m) => `<li>${esc(fieldLabel(m))}</li>`).join("") || "<li>Nenhuma pendência identificada pelo modelo. Confirme na visita.</li>"}</ul></section><section class="panel"><h3>Origem e atualização</h3><p>Observado: ${date(p.observed_at)} · importado: ${date(p.imported_at || p.first_seen)}</p>${(p.source_links || [{ source: p.source, url: p.url }]).map((s) => `<p>${link(s.url, s.source)}</p>`).join("")}<details><summary>Origem por campo</summary><ul>${Object.entries(
+      )}</div>${metroInfo(p)}<section class="panel"><h3>Histórico de preço</h3><div class="timeline">${(p.history || []).map((h) => `<div><span>Observado: ${date(h.observed_at)}<br>Registrado: ${date(h.recorded_at)}</span><b>${money(h.price)}</b></div>`).join("") || "<p>Ainda sem histórico.</p>"}</div></section><section class="panel"><h3>Dados pendentes</h3><ul>${[...(e.missing || []), ...(e.pending_requirements || [])].map((m) => `<li>${esc(fieldLabel(m))}</li>`).join("") || "<li>Nenhuma pendência identificada pelo modelo. Confirme na visita.</li>"}</ul></section><section class="panel"><h3>Origem e atualização</h3><p>Observado: ${date(p.observed_at)} · importado: ${date(p.imported_at || p.first_seen)}</p>${(p.source_links || [{ source: p.source, url: p.url }]).map((s) => `<p>${link(s.url, s.source)}</p>`).join("")}<details><summary>Origem por campo</summary><ul>${Object.entries(
       p.provenance || {},
     )
       .map(
@@ -896,7 +898,45 @@ function updateComparisonSelection() {
       });
   }
 }
+function updateMetroSlots(id, property) {
+  document.querySelectorAll(`[data-metro-slot="${id}"]`).forEach((slot) => {
+    const restoreFocus = slot.contains(document.activeElement);
+    slot.outerHTML = metroInfo({ ...property, id });
+    if (restoreFocus) {
+      const next = document.querySelector(`[data-metro-slot="${id}"]`);
+      const button = next?.querySelector("button:not(:disabled)");
+      if (button) button.focus({ preventScroll: true });
+      else if (next) {
+        next.tabIndex = -1;
+        next.focus({ preventScroll: true });
+      }
+    }
+  });
+  bindMetro(document);
+}
+function bindMetro(root) {
+  root.querySelectorAll("[data-metro]").forEach((button) => {
+    button.onclick = async () => {
+      const id = Number(button.dataset.metro),
+        epoch = accountEpoch;
+      if (metroPending.has(id)) return;
+      metroPending.add(id);
+      updateMetroSlots(id, {});
+      try {
+        const result = await api(`/properties/${id}/metro`, { method: "POST" });
+        if (epoch !== accountEpoch) return;
+        metroPending.delete(id);
+        updateMetroSlots(id, result);
+      } catch (error) {
+        if (epoch !== accountEpoch) return;
+        metroPending.delete(id);
+        updateMetroSlots(id, { metro_message: error.message });
+      }
+    };
+  });
+}
 function bind(root = main) {
+  bindMetro(root);
   root.querySelectorAll("[data-settings-link]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1425,6 +1465,7 @@ window.addEventListener("hashchange", async () => {
   main.focus({ preventScroll: true });
 });
 function clearAccountState() {
+  metroPending.clear();
   accountEpoch++;
   searchNeedsRender = false;
   cancelProfile?.();
