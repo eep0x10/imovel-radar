@@ -37,13 +37,13 @@ O backup usa a API online SQLite, inclui dados confirmados no WAL e verifica `in
 ./.venv/Scripts/python.exe -m pytest
 ```
 
-Testes cobrem isolamento entre contas, auth, importação, regressões de identidade/data/histórico, segurança do fetch, comparáveis, SAC/Price, agenda, leases e backup/restauração. Interface validada separadamente em 1440px e 390px. Evidências locais em `output/qa/`, ignoradas no Git.
+Testes cobrem isolamento entre contas, auth, importação, regressões de identidade/data/histórico, segurança do fetch, comparáveis, SAC/Price, agenda, leases e backup/restauração. A validação de interface é separada dos testes de API: confira desktop e 390px, filtros, favoritos, comparação e reconexão. Evidências locais não acompanham o repositório.
 
 `compose.yaml` fornece empacotamento para instalação própria com volume persistente. Não houve implantação remota nesta entrega: este repositório não tem destino de produção cadastrado. Para exposição pública, configurar HTTPS/reverse proxy, backups externos e operar a atualização. A API está documentada em `/api/docs`.
 
 ## Diagnóstico Google Maps
 
-A tela Fontes mostra se o serviço de rotas está configurado e o motivo de uma recusa. `billing_required` significa que o Google exige faturamento habilitado no projeto da chave; não significa que o formato da chave esteja errado. Habilitar faturamento é uma ação do titular no Google Cloud, sujeita à cobrança do provedor.
+Configurações → Fontes e atualização mostra se o serviço de rotas está configurado e o motivo de uma recusa. `billing_required` significa que o Google exige faturamento habilitado no projeto da chave; não significa que o formato da chave esteja errado. Habilitar faturamento é uma ação do titular no Google Cloud, sujeita à cobrança do provedor.
 
 Recusas de acesso, faturamento e quota suspendem novas consultas por uma hora. Rotas já armazenadas e ainda válidas continuam disponíveis. Uma chave nova tem diagnóstico independente. A aplicação só guarda códigos e mensagens próprias; nunca respostas de erro com credenciais.
 
@@ -67,4 +67,8 @@ A migração do esquema 2 para 3 é aditiva e preserva imóveis, observações, 
 
 ## Navegação integrada
 
-**Radar** reúne filtros e comparação dinâmica; **Minha jornada** reúne favoritos e acompanhamento. **Configurações** reúne conta, fontes, importações e diagnósticos. Links antigos de busca, fontes e comparação continuam encaminhando para o fluxo correspondente. A identidade visual existente é preservada: esta mudança reorganiza funcionalidades, sem exigir uma recriação do frontend.
+**Radar** reúne filtros, comparação dinâmica e favoritos na aba **Salvos**. **Configurações** reúne conta, fontes, importações e diagnósticos. Links antigos de busca, fontes e comparação continuam encaminhando para o fluxo correspondente. A identidade visual existente é preservada: esta mudança reorganiza funcionalidades, sem exigir uma recriação do frontend.
+
+## Leitura da mudança de preço
+
+O destaque no card usa a última transição real de preço cuja `observed_at` esteja nos últimos 30 dias. Repetir o preço ou alterar apenas metadados não reinicia o prazo. A primeira observação e datas desconhecidas ou futuras não recebem esse destaque. O histórico integral permanece no dossiê.

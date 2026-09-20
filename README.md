@@ -17,7 +17,7 @@ Organize sua busca pela casa própria. Acompanhe anúncios, compare preços e cu
 
 </div>
 
-> **Preço bom precisa de contexto.** Qualidade observada, aderência às suas preferências e comparação de preços são medidas separadas. Dados ausentes aparecem como pendências.
+> **Preço bom precisa de contexto.** Qualidade observada, aderência às suas preferências e comparação de preços são medidas separadas. Dados ausentes aparecem como pendências, exceto a fase: sem indicação de planta ou obra, a regra do produto classifica o imóvel como pronto.
 >
 > O banner é uma ilustração de marca criada com IA, não uma fotografia de um imóvel anunciado.
 
@@ -88,6 +88,12 @@ Os coletores não representam parceria ou API oficial. A cobertura informada cor
 - **Aderência:** compara suas prioridades e restrições; ausência de informação não vira uma confirmação positiva.
 - **Oportunidade:** exige anúncio recente e pelo menos três comparáveis únicos da mesma região e faixa de área. Mostra amostra e confiança; usa preços pedidos, não transações concluídas.
 - **Orçamento:** separa valor de compra, despesas mensais, entrada, juros, custos de aquisição e reserva. IPTU com periodicidade desconhecida não é inventado.
+
+## Fases e mudanças de preço
+
+O Radar trabalha com **Pronto** e **Na planta / em construção**. Sem indicação de planta ou obra, o anúncio é classificado como pronto por padrão; isso não substitui a confirmação no anúncio ou na visita.
+
+Cada card identifica a última mudança de preço observada nos **últimos 30 dias**, com valor anterior, diferença e data. Uma atualização sem mudança de preço não renova esse período. Uma primeira observação não é tratada como queda; sem data observada válida, o sistema não afirma recência.
 
 ## Dados sob seu controle
 
