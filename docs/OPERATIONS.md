@@ -54,3 +54,17 @@ Referência: [Google Geocoding: uso e faturamento](https://developers.google.com
 A busca reage à digitação e aos seletores. Preferências são salvas automaticamente após uma breve pausa e aplicadas ao Radar. A lista usa rolagem infinita em lotes, sem limite fixo de páginas; há botão acessível de carregamento e repetição em caso de erro. As telas de dados visíveis sincronizam a cada 15 segundos e ao reconectar, sem recarregar o documento. A sincronização aguarda o término de edições e dossiês abertos. Coleta externa continua seguindo sua rotina própria; atualizar a interface não dispara scraping.
 
 O produto é exclusivo para compra. Anúncios explicitamente de aluguel são rejeitados na entrada e excluídos da listagem. Imóveis à venda com inquilino continuam classificados como compra.
+
+## Buscas salvas e notificações
+
+No Radar, **Criar alerta desta busca** guarda uma cópia dos critérios pessoais, texto de busca e fase do imóvel. Os imóveis compatíveis já existentes são registrados como lista inicial e não geram notificações retroativas. Cada alerta é independente: alterar os filtros do Radar depois não muda a busca salva.
+
+Após uma importação ou coleta concluída, novas correspondências geram notificações vinculadas à busca e ao imóvel. Repetir a mesma coleta não duplica avisos. Uma queda de preço que faça um imóvel entrar pela primeira vez no filtro também pode gerar uma nova correspondência. Se a coleta falhar, a lista anterior permanece preservada.
+
+Pausar interrompe novos avisos. Retomar reconcilia os imóveis atualmente disponíveis e informa correspondências ainda não notificadas uma única vez. Os alertas legados ficam separados como histórico; não são atribuídos retroativamente a buscas salvas. O feed principal é interno ao aplicativo, com lidas/não lidas e contador; não envia e-mail, mensagens ou notificações externas.
+
+A migração do esquema 2 para 3 é aditiva e preserva imóveis, observações, favoritos e histórico. Faça backup antes da atualização. A restauração suporta snapshots das versões 1, 2 e 3 e exige as tabelas de buscas salvas em snapshots da versão 3.
+
+## Navegação integrada
+
+**Radar** reúne filtros e comparação dinâmica; **Minha jornada** reúne favoritos e acompanhamento. **Configurações** reúne conta, fontes, importações e diagnósticos. Links antigos de busca, fontes e comparação continuam encaminhando para o fluxo correspondente. A identidade visual existente é preservada: esta mudança reorganiza funcionalidades, sem exigir uma recriação do frontend.

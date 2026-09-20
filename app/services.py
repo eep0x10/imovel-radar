@@ -122,6 +122,8 @@ def ingest(conn, user_id, records, origin="import", source_id=None):
                     f"De R$ {previous['price']:,.2f} para R$ {record['price']:,.2f}. Confirme a disponibilidade na fonte.", f"drop:{pid}:{fingerprint}")
         if source_id is None:
             conn.execute("UPDATE sources SET last_attempt=?,last_success=?,status='imported',error=NULL WHERE id=? AND user_id=?", (timestamp, timestamp, sid, user_id))
+    from .saved_searches import reconcile
+    result["notifications"] = reconcile(conn, user_id)
     return result
 
 

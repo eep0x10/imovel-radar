@@ -79,7 +79,7 @@ def initialize():
     with connect() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        if version > 2:
+        if version > 3:
             raise RuntimeError("Database schema is newer than this application")
         conn.executescript(SCHEMA)
         conn.execute("INSERT OR IGNORE INTO schema_versions VALUES(1,?)", (now_iso(),))
@@ -87,7 +87,21 @@ def initialize():
         if 'assessments' not in columns:
             conn.execute("ALTER TABLE tracking ADD COLUMN assessments TEXT NOT NULL DEFAULT '{}'")
         conn.execute("INSERT OR IGNORE INTO schema_versions VALUES(2,?)", (now_iso(),))
-        conn.execute("PRAGMA user_version=2")
+        conn.executescript("""
+CREATE TABLE IF NOT EXISTS saved_searches(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
+ name TEXT NOT NULL, profile TEXT NOT NULL, q TEXT NOT NULL DEFAULT '', construction TEXT NOT NULL DEFAULT 'all',
+ enabled INTEGER NOT NULL DEFAULT 1, version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS saved_searches_user ON saved_searches(user_id,id);
+CREATE TABLE IF NOT EXISTS saved_search_matches(search_id INTEGER NOT NULL REFERENCES saved_searches(id),
+ canonical_key TEXT NOT NULL, property_id INTEGER NOT NULL REFERENCES properties(id), first_matched_at TEXT NOT NULL,
+ PRIMARY KEY(search_id,canonical_key));
+""")
+        alert_columns = {row[1] for row in conn.execute('PRAGMA table_info(alerts)')}
+        if 'saved_search_id' not in alert_columns:
+            conn.execute("ALTER TABLE alerts ADD COLUMN saved_search_id INTEGER REFERENCES saved_searches(id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS alerts_search_user ON alerts(user_id,saved_search_id,id)")
+        conn.execute("INSERT OR IGNORE INTO schema_versions VALUES(3,?)", (now_iso(),))
+        conn.execute("PRAGMA user_version=3")
 
 
 @contextmanager

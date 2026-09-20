@@ -177,3 +177,21 @@ def test_restore_rejects_unrelated_database_before_creating_destination(database
     with pytest.raises(ValueError, match='esquema'):
         backup.restore_copy(unrelated, target)
     assert not target.exists()
+
+
+def test_backup_restores_saved_search_baseline_and_notifications(database, tmp_path):
+    from app import saved_searches
+    from app.schemas import SavedSearchCreate
+    with storage.transaction() as conn:
+        search = saved_searches.create(conn, database['uid'], SavedSearchCreate(name='Compra', profile=storage.DEFAULT_PROFILE).model_dump())
+        ingest(conn, database['uid'], [{'source': 'Feed', 'external_id': 'apt2', 'title': 'Nova oportunidade', 'price': 290000, 'area': 50, 'city': 'São Paulo', 'bedrooms': 2, 'status': 'active'}])
+    path = tmp_path / 'notifications.sqlite3'
+    backup.snapshot(path)
+    restored = tmp_path / 'notifications-restored.sqlite3'
+    assert backup.restore_copy(path, restored)['integrity_check'] == 'ok'
+    with sqlite3.connect(restored) as conn:
+        assert conn.execute('pragma user_version').fetchone()[0] == 3
+        assert conn.execute('select count(*) from saved_searches').fetchone()[0] == 1
+        assert conn.execute('select count(*) from saved_search_matches').fetchone()[0] == 2
+        assert conn.execute('select count(*) from alerts where saved_search_id=?', (search['id'],)).fetchone()[0] == 1
+        assert conn.execute('pragma foreign_key_check').fetchone() is None

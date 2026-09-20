@@ -46,7 +46,7 @@ cd imovel-radar
 ./scripts/run.ps1
 ```
 
-Abra **http://127.0.0.1:8766**, crie sua conta com senha de pelo menos **8 caracteres** e ajuste **Minha busca**.
+Abra **http://127.0.0.1:8766**, crie sua conta com senha de pelo menos **8 caracteres** e ajuste os filtros diretamente no **Radar**.
 
 <details>
 <summary>Linux e macOS</summary>
@@ -59,10 +59,12 @@ python3 -m venv .venv
 
 </details>
 
-1. Configure orçamento, metragem, quartos, banheiros, vaga, andar e preferência de metrô.
-2. Em **Fontes e atualização**, ative QuintoAndar, Loft, VivaReal e OLX e execute a primeira coleta.
+1. No **Radar**, configure orçamento, metragem, quartos, banheiros, vaga, andar e preferência de metrô; alterações são aplicadas automaticamente.
+2. Em **Configurações → Fontes e atualização**, ative QuintoAndar, Loft, VivaReal e OLX e execute a primeira coleta.
 3. Consulte anúncios no radar. Use **Aplicar minha busca** para restringir aos critérios e examine pendências.
-4. Compare imóveis, salve favoritos e acompanhe visitas e alterações.
+4. Compare imóveis sem sair da lista e salve favoritos em **Minha jornada**.
+5. Use **Criar alerta desta busca** para receber notificações apenas de novos imóveis compatíveis; os anúncios existentes formam a lista inicial, sem avisos retroativos.
+6. Em **Configurações**, gerencie nome da conta, fontes, importações, diagnósticos e exportação.
 
 O processo inicia API e worker. Por padrão, a rotina diária roda às 7h de `America/Sao_Paulo`. O computador e a aplicação precisam estar ligados. Não há coleta se as fontes estiverem pausadas.
 

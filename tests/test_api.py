@@ -222,3 +222,12 @@ def test_sale_with_tenant_remains_purchase(client):
     headers = account(client)
     result = preview(client, headers, [listing(title='Apartamento à venda com renda de aluguel')])
     assert result['valid'] == 1
+
+
+def test_export_keeps_legacy_alert_history_separate(client):
+    headers = account(client)
+    commit(client, headers, [listing()])
+    exported = client.get('/api/export', headers=headers).json()
+    assert exported['historical_alerts']
+    assert exported['notifications'] == []
+    assert all(a['kind'] != 'saved_search_match' for a in exported['historical_alerts'])

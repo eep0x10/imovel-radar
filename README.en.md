@@ -27,3 +27,7 @@ Accounts have isolated listings, favorites, visits, notes and assessments. SQLit
 Run `python -m pytest -q` and `python scripts/privacy_audit.py`. See the Portuguese operational and architecture guides for deployment, source limits and backup procedures. The AI-created banner is illustrative branding, not a real property or application screenshot.
 
 Independent project, unaffiliated with listing portals. Email password recovery, MFA and external notifications are not implemented.
+
+## Integrated Radar and saved-search notifications
+
+Filters live directly in Radar and save automatically. Compare listings in a dialog without leaving the results, save favorites in My journey, and create a notification rule from the current search. Existing matches establish a baseline; only new matches produce notifications, without duplicates on repeated imports. Each rule keeps its own criteria snapshot. Account details, sources, imports and diagnostics are grouped in Settings.

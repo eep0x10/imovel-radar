@@ -18,10 +18,10 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__, storage
+from . import __version__, storage, saved_searches
 from .domain import simulate_budget
 from .ingestion import parse_upload
-from .schemas import AlertUpdate, Budget, CommitPreview, Login, Profile, PortalCreate, Register, SourceCreate, SourceUpdate, Tracking
+from .schemas import AccountUpdate, SavedSearchCreate, SavedSearchUpdate, AlertUpdate, Budget, CommitPreview, Login, Profile, PortalCreate, Register, SourceCreate, SourceUpdate, Tracking
 from .security import hash_password, new_session, token_hash, verify_password
 from .services import detail, enrich_all, ingest, profile_for, refresh_source
 
@@ -385,6 +385,51 @@ def refresh_all(user: User):
     return {"results": results, "message": "Atualizações concluídas" if results else "Nenhuma fonte de coleta está habilitada. Configure uma fonte para atualização diária."}
 
 
+@app.patch("/api/account")
+def update_account(payload: AccountUpdate, user: User):
+    with storage.transaction() as conn:
+        conn.execute("UPDATE users SET name=? WHERE id=?", (payload.name, user["id"]))
+    return {**user, "name": payload.name}
+
+
+@app.get("/api/saved-searches")
+def get_saved_searches(user: User):
+    with closing(storage.connect()) as conn:
+        return {"items": saved_searches.searches(conn, user["id"])}
+
+
+@app.post("/api/saved-searches", status_code=201)
+def create_saved_search(payload: SavedSearchCreate, user: User):
+    with storage.transaction() as conn:
+        if conn.execute("SELECT COUNT(*) FROM saved_searches WHERE user_id=?", (user["id"],)).fetchone()[0] >= 50:
+            raise HTTPException(422, "Limite de 50 buscas salvas por conta")
+        return saved_searches.create(conn, user["id"], payload.model_dump())
+
+
+@app.patch("/api/saved-searches/{sid}")
+def update_saved_search(sid: int, payload: SavedSearchUpdate, user: User):
+    with storage.transaction() as conn:
+        if conn.execute("UPDATE saved_searches SET enabled=?,updated_at=? WHERE id=? AND user_id=?",
+                        (payload.enabled, storage.now_iso(), sid, user["id"])).rowcount != 1:
+            raise HTTPException(404, "Busca não encontrada")
+        created = saved_searches.reconcile(conn, user["id"], sid) if payload.enabled else 0
+        return {**next(s for s in saved_searches.searches(conn, user["id"]) if s['id'] == sid), "notifications_created": created}
+
+
+@app.get("/api/notifications")
+def get_notifications(user: User, page: int = Query(default=1, ge=1),
+                      page_size: int = Query(default=50, ge=1, le=100), unread_only: bool = False):
+    with closing(storage.connect()) as conn:
+        return saved_searches.notifications(conn, user["id"], page, page_size, unread_only)
+
+
+@app.patch("/api/notifications/read-all")
+def read_all_notifications(user: User):
+    with storage.transaction() as conn:
+        updated = conn.execute("UPDATE alerts SET read=1 WHERE user_id=? AND saved_search_id IS NOT NULL AND read=0", (user["id"],)).rowcount
+    return {"ok": True, "updated": updated}
+
+
 @app.get("/api/alerts")
 def alerts(user: User):
     with closing(storage.connect()) as conn:
@@ -416,6 +461,9 @@ def export_account(user: User):
         for item in items:
             item["history"] = [dict(r) for r in conn.execute("SELECT price,observed_at,recorded_at FROM observations WHERE property_id=? ORDER BY id", (item["id"],))]
         result = {"version": __version__, "exported_at": storage.now_iso(), "user": user, "profile": profile_for(conn, user["id"]), "properties": items,
+            "historical_alerts": [dict(r) for r in conn.execute("SELECT id,property_id,kind,title,body,created_at,read FROM alerts WHERE user_id=? AND saved_search_id IS NULL ORDER BY id", (user["id"],))],
+            "saved_searches": saved_searches.searches(conn, user["id"]),
+            "notifications": [dict(r) for r in conn.execute("SELECT id,property_id,kind,title,body,created_at,read,saved_search_id FROM alerts WHERE user_id=? AND saved_search_id IS NOT NULL ORDER BY id", (user["id"],))],
             "sources": [dict(r) for r in conn.execute("SELECT name,kind,url,status,enabled,last_success FROM sources WHERE user_id=?", (user["id"],))]}
     return JSONResponse(result, headers={"Content-Disposition": 'attachment; filename="meus-imoveis.json"'})
 

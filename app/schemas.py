@@ -164,3 +164,31 @@ class Budget(StrictModel):
     acquisition_costs: float = Field(default=0, ge=0, le=1e9)
     reserve: float = Field(default=0, ge=0, le=1e9)
     model: Literal["price", "sac"] = "price"
+
+class SavedSearchCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=100)
+    profile: Profile
+    q: str = Field(default="", max_length=200)
+    construction: Literal["all", "off_plan", "under_construction", "ready", "unknown"] = "all"
+
+    @field_validator("name")
+    @classmethod
+    def nonblank(cls, value):
+        if not value.strip():
+            raise ValueError("Informe o nome do alerta")
+        return value.strip()
+
+
+class SavedSearchUpdate(StrictModel):
+    enabled: bool
+
+
+class AccountUpdate(StrictModel):
+    name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def nonblank(cls, value):
+        if not value.strip():
+            raise ValueError("Informe seu nome")
+        return value.strip()

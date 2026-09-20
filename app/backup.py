@@ -47,8 +47,10 @@ def restore_copy(source: Path, destination: Path):
         tables = {row[0] for row in src.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         required = {"users", "properties", "observations", "tracking", "sources", "schema_versions"}
         version = src.execute("PRAGMA user_version").fetchone()[0]
-        if not required.issubset(tables) or version not in (1, 2):
+        if not required.issubset(tables) or version not in (1, 2, 3):
             raise ValueError("Snapshot não corresponde ao esquema compatível do Imóvel Radar")
+        if version >= 3 and not {'saved_searches', 'saved_search_matches'}.issubset(tables):
+            raise ValueError("Snapshot incompleto para o esquema de notificações")
         if src.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise ValueError("Snapshot contém referências inválidas")
         destination.parent.mkdir(parents=True, exist_ok=True)
