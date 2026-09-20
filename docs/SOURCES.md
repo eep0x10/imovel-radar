@@ -25,3 +25,12 @@ O Radar usa duas fases: **Pronto** e **Na planta / em construção**. Na ausênc
 ## Pesquisa e alertas
 
 Pesquisar nas fontes congela os filtros atuais e inicia coleta em segundo plano. Alertas consultam seus próprios critérios salvos. Veja [fluxo e evidências da revisão](SEARCH-REVIEW.md).
+
+
+## Caminhada até o metrô
+
+`IMOVEL_METRO_PROVIDER=osm` usa estações operacionais do OpenStreetMap em São Paulo e rotas reais do perfil pedestre FOSSGIS/OSRM. São comparadas três estações geograficamente próximas; vence a menor duração calculada. É uma estimativa de caminhada baseada no mapa, sem usar distância em linha reta como tempo e sem estações favoritas.
+
+O modo gratuito é gradual: limite global de 60 chamadas de rotas por dia (até 20 localizações novas com três candidatos), intervalo superior a um segundo e cache de 30 dias. Anúncios na mesma coordenada compartilham o cálculo. Falhas, ausência de coordenadas e esgotamento da cota ficam visíveis, sem números inventados. O worker retoma a fila dos anúncios existentes em lotes, independentemente de nova coleta. Recoletas preservam rotas válidas apenas se a localização permanecer igual.
+
+Atribuição e política: [OpenStreetMap](https://www.openstreetmap.org/copyright), [FOSSGIS e limites de uso](https://routing.openstreetmap.de/about.html), [corrigir o mapa](https://www.openstreetmap.org/fixthemap). Serviços públicos não possuem garantia de disponibilidade. Google Maps continua opcional com chave, APIs e faturamento habilitados; erros não expõem a chave.

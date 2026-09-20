@@ -259,6 +259,9 @@ def enrich_records(records, profile):
     geocoding remains unknown. profile does not replace a missing listing address.
     Cache uses the application's SQLite runtime table, with atomic transactions.
     """
+    if os.getenv("IMOVEL_METRO_PROVIDER") == "osm":
+        from .osm_walking import enrich_records as osm_enrich
+        return osm_enrich(records, profile)
     output = [deepcopy(record) for record in records]
     result = {"records": output, "warnings": [], "enriched": 0, "cache_hits": 0, "lookups": 0, "requests": 0}
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")

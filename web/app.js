@@ -6,6 +6,7 @@ import {
   listingTitle,
   money,
   number,
+  metroText,
   date,
   link,
   header,
@@ -329,6 +330,7 @@ async function detail(id) {
       ...(p.occupied != null
         ? [["Ocupação", p.occupied ? "Ocupado" : "Desocupado"]]
         : []),
+      ["Metrô a pé", esc(metroText(p))],
       [
         "Elevador",
         p.elevator == null ? "Não informado" : p.elevator ? "Sim" : "Não",
@@ -401,7 +403,7 @@ async function comparison() {
                   ? "Ocupado"
                   : "Desocupado",
           ],
-          ["Metrô a pé", (p) => `${number(p.metro_minutes)} min`],
+          ["Metrô a pé", metroText],
           [
             "Observado",
             (p) =>
@@ -681,7 +683,8 @@ function portalCatalog(r) {
     .join("")}</div></section>`;
 }
 function walkingIntegrationStatus(status) {
-  const integration = status.integrations?.google_maps;
+  const integration =
+    status.integrations?.walking || status.integrations?.google_maps;
   if (!integration) return "";
   const labels = {
     not_configured: "Não configurado",

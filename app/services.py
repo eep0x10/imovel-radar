@@ -103,6 +103,8 @@ def ingest(conn, user_id, records, origin="import", source_id=None):
         existing = conn.execute("SELECT * FROM properties WHERE user_id=? AND source=? AND external_id=?", (user_id, source, record["external_id"])).fetchone()
         observed = record.get("observed_at")
         previous = json.loads(existing["data"]) if existing else None
+        from .metro_jobs import preserve_route
+        preserve_route(record, previous)
         # Undated legacy imports cannot replace a fresher timestamped observation.
         old_date = previous.get("observed_at") if previous else None
         def instant(value):

@@ -40,3 +40,15 @@ Também corrigidos: regiões aplicadas apenas na coleta e ignoradas no Radar, re
 QA isolado pelo navegador integrado: condomínio 500 elimina 700, mantém 400 e 500; desconhecido aparece identificado e é removido ao ativar exclusão. Total mensal 500 mantém condomínio 400 + IPTU anual 1.200; teto de condomínio zero retorna vazio. Desativar e reativar região restaura a restrição. Formulário e resultados preservados sem navegação/reload; desktop e 390 px inspecionados. Estilo e integração Anime.js existentes mantidos; feedback de salvamento é imediato, sem nova animação de formulário.
 
 Suite: 284 testes aprovados, incluindo matriz de limites, valores ausentes, mapa e alerta congelado. Auditoria local após a correção: 154 correspondências entre 1.008 anúncios de compra, nenhuma acima do custo mensal conhecido configurado. Isso não comprova custos ausentes nem disponibilidade futura dos portais.
+
+
+## Caminhadas — revisão 1.5.2
+
+Causa reproduzida: o provedor Google respondeu `billing_required`; a base tinha zero rotas apesar de 773 anúncios com coordenadas. O usuário escolheu a alternativa gratuita limitada. O modo OSM foi configurado localmente; a chave Google permanece privada e sem uso nesse modo.
+
+Mantida a apresentação existente. Cartões e comparação exibem tempo a pé e nome da estação, ou motivo da pendência. O dossiê também contém a informação. Atribuição acompanha os resultados OSM. Atualizações entram pelo polling existente sem full refresh; atualização de fundo não repete animação Anime.js. Nenhuma nova animação necessária para troca de valores textuais.
+
+
+Validação real: sete anúncios no Largo São José do Maranhão receberam rota a pé de 1.316 m / 17,55 min até Carrão – Assaí Atacadista, reutilizando um cálculo em três estações candidatas. Catálogo inicial OSM contém 64 estações por nós, com cobertura explicitamente parcial; a consulta completa de nós/vias/relações sofreu indisponibilidade. Resultados dessa base recebem qualificação de cobertura parcial. Isso não garante a estação absolutamente mais próxima fora do catálogo. Desktop e 390px verificados em base QA isolada com estado calculado e pendente, sem erros de console.
+
+Validação: 296 testes passaram; verificações focadas da fila e do provedor foram repetidas após o ajuste de prioridade. Banco manteve 1.009 imóveis e 1.408 observações com integrity_check=ok. API local saudável na versão 1.5.2 e worker ativo.

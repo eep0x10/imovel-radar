@@ -498,7 +498,7 @@ def health():
 def status(user: User):
     from .location_enrichment import provider_status
     with closing(storage.connect()) as conn:
-        return {"integrations": {"google_maps": provider_status()}, "schedule": schedule_info(conn), "legacy_import_available": os.environ.get("IMOVEL_ENABLE_LEGACY_IMPORT") == "1" and user["id"] == 1 and (storage.ROOT / "resultados_quintoandar.xlsx").is_file()}
+        return {"integrations": {"google_maps": provider_status(), "walking": {"configured": True, "status": "ready", "message": "Rotas gratuitas OpenStreetMap/FOSSGIS: cálculo gradual, até 60 consultas de rotas por dia, cache por 30 dias. Requer coordenadas precisas; mantenha o aplicativo aberto."} if os.getenv("IMOVEL_METRO_PROVIDER") == "osm" else provider_status()}, "schedule": schedule_info(conn), "legacy_import_available": os.environ.get("IMOVEL_ENABLE_LEGACY_IMPORT") == "1" and user["id"] == 1 and (storage.ROOT / "resultados_quintoandar.xlsx").is_file()}
 
 
 @app.get("/api/{unknown:path}")
