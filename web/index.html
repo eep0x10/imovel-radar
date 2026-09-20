@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Imóvel Radar</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 15L16 4L28 15V29H4Z' fill='%23244f42'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="#radar"
+          ><span class="brand-icon">⌂</span>imóvel<span>radar</span></a
+        >
+        <p class="section-label">SEU PRÓXIMO ENDEREÇO</p>
+        <nav id="nav" aria-label="Navegação principal"></nav>
+        <div class="sidebar-foot">
+          <span class="avatar">EU</span>
+          <div id="identity"></div>
+        </div>
+      </aside>
+      <div class="workspace">
+        <header class="topbar">
+          <span>Seu próximo endereço, com contexto.</span
+          ><button id="logout" hidden>Sair</button>
+        </header>
+        <main id="main" tabindex="-1"></main>
+        <footer>
+          Preços anunciados não representam valores negociados. Confirme
+          disponibilidade e documentação na fonte. Informações ausentes
+          permanecem pendentes.
+        </footer>
+      </div>
+    </div>
+    <dialog id="detail" aria-label="Dossiê do imóvel">
+      <div id="detail-content"></div>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

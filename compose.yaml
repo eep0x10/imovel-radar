@@ -1,0 +1,32 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8766:8766"
+    environment:
+      IMOVEL_DB_PATH: /app/data/radar.sqlite3
+      IMOVEL_TIMEZONE: America/Sao_Paulo
+      IMOVEL_REFRESH_HOUR: "7"
+    volumes:
+      - radar_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    environment:
+      IMOVEL_DB_PATH: /app/data/radar.sqlite3
+      IMOVEL_TIMEZONE: America/Sao_Paulo
+      IMOVEL_REFRESH_HOUR: "7"
+    volumes:
+      - radar_data:/app/data
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  radar_data:
