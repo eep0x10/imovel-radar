@@ -2,6 +2,7 @@
 from __future__ import annotations
 import csv
 from .construction import construction_status
+from .sale_scope import rental_listing
 import hashlib
 import http.client
 import io
@@ -84,7 +85,10 @@ def _normalize(raw):
                 if not _missing(data.get(alias)):
                     data[field] = data[alias]
                     break
+    if rental_listing(data):
+        raise ValueError('Anúncios de aluguel não são aceitos: este sistema é exclusivo para compra.')
     record = {key: _number(data.get(key), key) for key in NUMBERS}
+    record['transaction_type'] = 'sale'
     lower, upper = record['floor_min_reported'], record['floor_max_reported']
     if lower is not None and upper is not None and lower > upper:
         raise ValueError('Intervalo de andar invertido')

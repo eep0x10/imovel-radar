@@ -1443,3 +1443,9 @@ td {
 .portal-catalog .panel button {
   margin-top: auto;
 }
+
+.live-status {
+  margin: 8px 36px 0;
+  font-size: 12px;
+  color: var(--muted, #627779);
+}

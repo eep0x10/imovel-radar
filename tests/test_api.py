@@ -205,3 +205,20 @@ def test_construction_does_not_guess_from_generic_or_negated_title():
     for title in ['Apartamento novo', 'Lançamento de oferta', 'Não é na planta', 'Planta com 2 quartos']:
         assert construction_status({'title': title}) == 'unknown'
     assert construction_status({'title': 'Na planta', 'construction_status': 'ready'}) == 'ready'
+
+@pytest.mark.parametrize('extra', [
+    {'transaction_type': 'rent'}, {'business_context': 'RENT'},
+    {'url': 'https://example.com/alugar/apartamento'},
+    {'title': 'Apartamento para alugar'},
+])
+def test_rentals_rejected(client, extra):
+    headers = account(client)
+    result = preview(client, headers, [listing(**extra)])
+    assert result['valid'] == 0
+    assert result['errors']
+
+
+def test_sale_with_tenant_remains_purchase(client):
+    headers = account(client)
+    result = preview(client, headers, [listing(title='Apartamento à venda com renda de aluguel')])
+    assert result['valid'] == 1

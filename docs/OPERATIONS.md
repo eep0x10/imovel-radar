@@ -48,3 +48,9 @@ A tela Fontes mostra se o serviço de rotas está configurado e o motivo de uma 
 Recusas de acesso, faturamento e quota suspendem novas consultas por uma hora. Rotas já armazenadas e ainda válidas continuam disponíveis. Uma chave nova tem diagnóstico independente. A aplicação só guarda códigos e mensagens próprias; nunca respostas de erro com credenciais.
 
 Referência: [Google Geocoding: uso e faturamento](https://developers.google.com/maps/documentation/geocoding/usage-and-billing).
+
+## Interface dinâmica
+
+A busca reage à digitação e aos seletores. Preferências são salvas automaticamente após uma breve pausa e aplicadas ao Radar. A lista usa rolagem infinita em lotes, sem limite fixo de páginas; há botão acessível de carregamento e repetição em caso de erro. As telas de dados visíveis sincronizam a cada 15 segundos e ao reconectar, sem recarregar o documento. A sincronização aguarda o término de edições e dossiês abertos. Coleta externa continua seguindo sua rotina própria; atualizar a interface não dispara scraping.
+
+O produto é exclusivo para compra. Anúncios explicitamente de aluguel são rejeitados na entrada e excluídos da listagem. Imóveis à venda com inquilino continuam classificados como compra.

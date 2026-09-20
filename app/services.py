@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import storage
 from .domain import evaluate_property
+from .sale_scope import rental_listing
 
 
 def digest(value):
@@ -60,6 +61,9 @@ def ingest(conn, user_id, records, origin="import", source_id=None):
     timestamp = storage.now_iso()
     for original in records:
         record = dict(original)
+        if rental_listing(record):
+            result["errors"].append("Anúncio de aluguel ignorado: sistema exclusivo para compra.")
+            continue
         record.pop("id", None)
         record["data_origin"] = origin
         record["source"] = str(record.get("source") or "Manual").strip()
@@ -123,7 +127,7 @@ def ingest(conn, user_id, records, origin="import", source_id=None):
 
 def all_properties(conn, user_id):
     rows = conn.execute("SELECT * FROM properties WHERE user_id=? ORDER BY id DESC", (user_id,)).fetchall()
-    return [storage.load_property(row) for row in rows]
+    return [item for row in rows if not rental_listing(item := storage.load_property(row))]
 
 
 def enrich_all(conn, user_id):

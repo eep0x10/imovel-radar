@@ -29,7 +29,7 @@ const state = {
   sort: "fit",
   construction: "all",
   tab: "all",
-  apply: false,
+  apply: true,
   page: 1,
 };
 const nav = [
@@ -41,6 +41,45 @@ const nav = [
   ["sources", "↻", "Fontes e atualização"],
   ["alerts", "◎", "Alertas"],
 ];
+let lastPage = null,
+  lastHtml = null,
+  rendering = 0,
+  searchTimer;
+const dirtyForms = new WeakSet();
+function editingControl() {
+  return (
+    main.contains(document.activeElement) &&
+    document.activeElement.matches(
+      'input, textarea, select, [contenteditable="true"]',
+    )
+  );
+}
+function safeToSync() {
+  return (
+    !document.hidden &&
+    !dialog.open &&
+    !rendering &&
+    !loadingMore &&
+    !main.querySelector("button:disabled:not([data-page])") &&
+    !editingControl() &&
+    ![...main.querySelectorAll("form")].some((f) => dirtyForms.has(f))
+  );
+}
+main.addEventListener("input", (e) => {
+  const form = e.target.closest("form");
+  if (form && form.id !== "search-form") dirtyForms.add(form);
+});
+main.addEventListener("change", (e) => {
+  const form = e.target.closest("form");
+  if (form && form.id !== "search-form") dirtyForms.add(form);
+});
+let flushProfile = null,
+  cancelProfile = null;
+let radarQuery = "",
+  radarLoaded = 0,
+  radarTotal = 0,
+  radarObserver = null,
+  loadingMore = false;
 let detailVersion = 0;
 let renderVersion = 0,
   lastDetailFocus = null;
@@ -56,34 +95,79 @@ function navigation() {
   document.querySelector("#identity").textContent = state.user?.name || "";
   document.querySelector("#logout").hidden = !state.user;
 }
-async function render() {
+async function render({ background = false } = {}) {
+  if (background && !safeToSync()) return;
   const v = ++renderVersion;
-  navigation();
+  const page = location.hash.slice(1) || "radar";
+  const samePage = lastPage === page && !!state.user;
+  if (!background) navigation();
   if (!state.user) return auth();
-  main.innerHTML =
-    '<div class="panel" role="status">Carregando seus dados…</div>';
+  rendering++;
+  if (!samePage)
+    main.innerHTML =
+      '<div class="panel" role="status">Carregando seus dados…</div>';
+  main.setAttribute("aria-busy", "true");
   try {
-    const page = location.hash.slice(1) || "radar";
     const html = await (
       { radar, compare: comparison, journey, budget, profile, sources, alerts }[
         page
       ] || radar
     )();
     if (v !== renderVersion) return;
+    // A user may begin editing while the request is in flight.
+    if (
+      background &&
+      (dialog.open ||
+        editingControl() ||
+        [...main.querySelectorAll("form")].some((f) => dirtyForms.has(f)))
+    )
+      return;
+    if (samePage && html === lastHtml) {
+      document.querySelector("#live-status").textContent = "Dados atualizados";
+      return;
+    }
+    const search = samePage ? main.querySelector("#search-form") : null;
+    const focused = search?.contains(document.activeElement)
+      ? document.activeElement
+      : null;
+    const selection =
+      focused && focused.selectionStart != null
+        ? [focused.selectionStart, focused.selectionEnd]
+        : null;
+    const scroll = [window.scrollX, window.scrollY];
     main.innerHTML = html;
+    if (search && main.querySelector("#search-form"))
+      main.querySelector("#search-form").replaceWith(search);
+    lastPage = page;
+    lastHtml = html;
     bind();
+    if (focused) {
+      focused.focus({ preventScroll: true });
+      if (selection) focused.setSelectionRange(...selection);
+    }
+    if (samePage) window.scrollTo(...scroll);
+    document.querySelector("#live-status").textContent = "Dados atualizados";
   } catch (e) {
-    if (v !== renderVersion) return;
-    if (!state.user) return auth();
+    if (v !== renderVersion || !state.user) return;
+    if (samePage) {
+      document.querySelector("#live-status").textContent =
+        "Sem conexão. Dados anteriores preservados; nova tentativa automática.";
+      if (!background) toast(e.message);
+      return;
+    }
     main.innerHTML =
       header(
         "Não foi possível carregar.",
         "Seus dados salvos permanecem preservados.",
       ) +
       `<div class="panel" role="alert">${esc(e.message)}<p><button data-retry>Tentar novamente</button></p></div>`;
-    main.querySelector("[data-retry]").onclick = render;
+    main.querySelector("[data-retry]").onclick = () => render();
+  } finally {
+    rendering--;
+    if (v === renderVersion) main.removeAttribute("aria-busy");
   }
 }
+
 function auth(register = false) {
   main.innerHTML =
     header(
@@ -113,6 +197,7 @@ function auth(register = false) {
   };
 }
 async function radar() {
+  const requestVersion = renderVersion;
   const params = new URLSearchParams({
     q: state.q,
     sort: state.sort,
@@ -120,11 +205,23 @@ async function radar() {
     saved: state.tab === "saved",
     drops: state.tab === "drops",
     apply_profile: state.apply,
-    page: state.page,
+    page: 1,
     page_size: 20,
   });
+  const query = params.toString();
   const r = await api(`/properties?${params}`),
     s = r.summary || {};
+  // Refresh all already-visible rows without dropping the user's scroll position.
+  for (let page = 2; page <= state.page && r.items.length < r.total; page++) {
+    params.set("page", page);
+    const next = await api(`/properties?${params}`);
+    r.items.push(...next.items);
+    if (!next.items.length) break;
+  }
+  if (requestVersion !== renderVersion) return "";
+  radarQuery = query;
+  radarLoaded = r.items.length;
+  radarTotal = r.total;
   return (
     header(
       "Seu próximo lar começa aqui.",
@@ -179,7 +276,7 @@ async function radar() {
       )
       .join(
         "",
-      )}</select><button>Buscar</button></form><p class="small">Fase conforme informada no anúncio. Sem evidência, o imóvel fica como fase não informada.</p><label class="small"><input id="apply-profile" type="checkbox" ${state.apply ? "checked" : ""}> Aplicar minha busca</label><p class="listing-count">${r.total} imóveis · atualização: ${date(r.last_updated)}</p>${r.items.length ? r.items.map((p) => card(p, state.compare)).join("") : `<div class="empty"><h3>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum imóvel nesses filtros" : "Seu radar está pronto para começar"}</h3><p>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Experimente outra busca ou limpe os filtros para ver os demais anúncios." : "Configure a coleta dos portais em Fontes e atualização para trazer anúncios reais ao radar. Você também pode importar um arquivo ou conectar um feed."}</p><a href="#sources">Configurar coleta e fontes →</a><p><button data-reset>Limpar filtros</button></p></div>`}<div class="pagination"><button data-page="${state.page - 1}" ${state.page <= 1 ? "disabled" : ""}>Anterior</button><span>Página ${state.page} de ${Math.max(1, Math.ceil(r.total / 20))}</span><button data-page="${state.page + 1}" ${state.page * 20 >= r.total ? "disabled" : ""}>Próxima</button></div></section><aside class="rail"><div class="daily"><p class="eyebrow">SUA DECISÃO, COM CONTEXTO</p><h2>Preço bom precisa de evidência.</h2><p>Avaliação de qualidade, aderência pessoal e preço relativo são medidas diferentes. Poucos comparáveis? A estimativa fica pendente.</p><a href="#alerts">Ver mudanças e alertas →</a></div><div class="panel"><h3>Uma busca com sua cara</h3><div class="check-row"><span>Orçamento</span><b>${money(state.profile.budget_max)}</b></div><div class="check-row"><span>Área mínima</span><b>${number(state.profile.area_min)} m²</b></div><a href="#profile">Editar preferências →</a></div><div class="subtle">Anúncios importados não se atualizam sozinhos. Em Fontes e atualização, confira quais coletas estão ativas, suas falhas e a saúde da rotina diária.</div></aside></div>`
+      )}</select><button>Buscar</button></form><p class="small">Fase conforme informada no anúncio. Sem evidência, o imóvel fica como fase não informada.</p><label class="small"><input id="apply-profile" type="checkbox" ${state.apply ? "checked" : ""}> Aplicar minha busca</label><p class="listing-count">${r.total} imóveis · atualização: ${date(r.last_updated)}</p><div id="radar-list">${r.items.length ? r.items.map((p) => card(p, state.compare)).join("") : `<div class="empty"><h3>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum imóvel nesses filtros" : "Seu radar está pronto para começar"}</h3><p>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Experimente outra busca ou limpe os filtros para ver os demais anúncios." : "Configure a coleta dos portais em Fontes e atualização para trazer anúncios reais ao radar. Você também pode importar um arquivo ou conectar um feed."}</p><a href="#sources">Configurar coleta e fontes →</a><p><button data-reset>Limpar filtros</button></p></div>`}</div><div id="radar-more" class="pagination" aria-live="polite">${radarLoaded < radarTotal ? '<button type="button" data-load-more>Carregar mais imóveis</button>' : "<span>Todos os imóveis desta busca foram exibidos.</span>"}</div></section><aside class="rail"><div class="daily"><p class="eyebrow">SUA DECISÃO, COM CONTEXTO</p><h2>Preço bom precisa de evidência.</h2><p>Avaliação de qualidade, aderência pessoal e preço relativo são medidas diferentes. Poucos comparáveis? A estimativa fica pendente.</p><a href="#alerts">Ver mudanças e alertas →</a></div><div class="panel"><h3>Uma busca com sua cara</h3><div class="check-row"><span>Orçamento</span><b>${money(state.profile.budget_max)}</b></div><div class="check-row"><span>Área mínima</span><b>${number(state.profile.area_min)} m²</b></div><a href="#profile">Editar preferências →</a></div><div class="subtle">Anúncios importados não se atualizam sozinhos. Em Fontes e atualização, confira quais coletas estão ativas, suas falhas e a saúde da rotina diária.</div></aside></div>`
   );
 }
 async function detail(id) {
@@ -427,7 +524,7 @@ async function profile() {
       )
       .join(
         "",
-      )}<div class="checks"><label><input type="checkbox" name="exclude_occupied" ${p.exclude_occupied ? "checked" : ""}>Excluir imóveis ocupados</label><label><input type="checkbox" name="require_elevator" ${p.require_elevator ? "checked" : ""}>Elevador obrigatório</label><label><input type="checkbox" name="exclude_unknown_required" ${p.exclude_unknown_required ? "checked" : ""}>Excluir imóveis com requisitos desconhecidos</label></div>${field("alert_drop_percent", "Alertar queda de preço a partir de (%)", p.alert_drop_percent ?? 5, "number", 'min="0" max="100" required')}<button class="primary">Salvar preferências</button><p>As notas usam fatores explicáveis. Dados ausentes não recebem nota máxima.</p><button type="button" data-export>Exportar dados da minha conta</button></section></div></form>`
+      )}<div class="checks"><label><input type="checkbox" name="exclude_occupied" ${p.exclude_occupied ? "checked" : ""}>Excluir imóveis ocupados</label><label><input type="checkbox" name="require_elevator" ${p.require_elevator ? "checked" : ""}>Elevador obrigatório</label><label><input type="checkbox" name="exclude_unknown_required" ${p.exclude_unknown_required ? "checked" : ""}>Excluir imóveis com requisitos desconhecidos</label></div>${field("alert_drop_percent", "Alertar queda de preço a partir de (%)", p.alert_drop_percent ?? 5, "number", 'min="0" max="100" required')}<p id="profile-save-status" role="status" aria-live="polite">Alterações são salvas e aplicadas automaticamente ao Radar.</p><button class="primary">Salvar agora</button><p>As notas usam fatores explicáveis. Dados ausentes não recebem nota máxima.</p><button type="button" data-export>Exportar dados da minha conta</button></section></div></form>`
   );
 }
 async function budget() {
@@ -527,7 +624,62 @@ function showImportPreview(r) {
     });
   document.querySelector("#import-preview").focus();
 }
+async function loadMore() {
+  if (loadingMore || rendering || radarLoaded >= radarTotal) return;
+  const version = renderVersion,
+    query = radarQuery;
+  const target = main.querySelector("#radar-more");
+  if (!target) return;
+  loadingMore = true;
+  target.textContent = "Carregando mais imóveis…";
+  try {
+    const params = new URLSearchParams(query);
+    params.set("page", state.page + 1);
+    const result = await api(`/properties?${params}`);
+    if (
+      version !== renderVersion ||
+      query !== radarQuery ||
+      !target.isConnected
+    )
+      return;
+    const batch = document.createElement("div");
+    batch.innerHTML = result.items.map((p) => card(p, state.compare)).join("");
+    main.querySelector("#radar-list").append(batch);
+    bind(batch);
+    radarLoaded += result.items.length;
+    radarTotal = result.total;
+    state.page++;
+    lastHtml = null;
+    target.innerHTML =
+      radarLoaded < radarTotal && result.items.length
+        ? '<button type="button" data-load-more>Carregar mais imóveis</button>'
+        : "<span>Todos os imóveis desta busca foram exibidos.</span>";
+  } catch (error) {
+    if (target.isConnected)
+      target.innerHTML = `<span>${esc(error.message)}</span><button type="button" data-load-more>Tentar novamente</button>`;
+    radarObserver?.disconnect();
+  } finally {
+    loadingMore = false;
+    const button = target.querySelector("[data-load-more]");
+    if (button) button.onclick = loadMore;
+  }
+}
 function bind(root = main) {
+  if (root === main) {
+    radarObserver?.disconnect();
+    const more = main.querySelector("#radar-more");
+    const button = more?.querySelector("[data-load-more]");
+    if (button) {
+      button.onclick = loadMore;
+      radarObserver = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) loadMore();
+        },
+        { rootMargin: "500px" },
+      );
+      radarObserver.observe(more);
+    }
+  }
   root.querySelectorAll("img").forEach((img) => {
     img.addEventListener("error", () => img.remove());
     if (img.complete && !img.naturalWidth) img.remove();
@@ -593,6 +745,11 @@ function bind(root = main) {
       (b.onclick = () => {
         state.q = "";
         state.construction = "all";
+        const searchForm = main.querySelector("#search-form");
+        if (searchForm) {
+          searchForm.elements.q.value = "";
+          searchForm.elements.construction.value = "all";
+        }
         state.apply = false;
         state.tab = "all";
         state.page = 1;
@@ -692,15 +849,29 @@ function bind(root = main) {
         download("/import/template.csv", "modelo-imoveis.csv"),
       ),
     );
-  root.querySelector("#search-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target);
-    state.q = f.get("q");
-    state.sort = f.get("sort");
-    state.construction = f.get("construction");
-    state.page = 1;
-    render();
-  });
+  const searchForm = root.querySelector("#search-form");
+  if (searchForm) {
+    const search = () => {
+      clearTimeout(searchTimer);
+      const f = new FormData(searchForm);
+      state.q = f.get("q");
+      state.sort = f.get("sort");
+      state.construction = f.get("construction");
+      state.page = 1;
+      render();
+    };
+    searchForm.onsubmit = (e) => {
+      e.preventDefault();
+      search();
+    };
+    searchForm.onchange = search;
+    searchForm.oninput = (e) => {
+      if (e.target.name !== "q" || e.isComposing) return;
+      renderVersion++;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(search, 350);
+    };
+  }
   root.querySelector("#apply-profile")?.addEventListener("change", (e) => {
     state.apply = e.target.checked;
     state.page = 1;
@@ -734,65 +905,121 @@ function bind(root = main) {
               ),
             },
           });
+          dirtyForms.delete(form);
           toast("Acompanhamento salvo.");
         });
       }),
   );
-  root.querySelector("#profile-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    busy(e.submitter, async () => {
-      const f = new FormData(e.target),
-        p = {
-          ...state.profile,
-          name: f.get("name"),
-          cities: f
-            .get("cities")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          neighborhoods: f
-            .get("neighborhoods")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          metro_stations: f
-            .get("metro_stations")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          exclude_occupied: f.has("exclude_occupied"),
-          require_elevator: f.has("require_elevator"),
-          exclude_unknown_required: f.has("exclude_unknown_required"),
-          weights: Object.fromEntries(
-            ["price", "location", "quality"].map((k) => [
-              k,
-              Number(f.get(`weight_${k}`)),
-            ]),
-          ),
-        };
-      for (const k of [
-        "budget_min",
-        "budget_max",
-        "bathrooms_min",
-        "floor_min",
-        "area_min",
-        "area_max",
-        "bedrooms_min",
-        "parking_min",
-        "metro_max",
-        "monthly_max",
-        "alert_drop_percent",
-      ])
-        p[k] =
-          f.get(k) === ""
-            ? ["bedrooms_min", "parking_min", "bathrooms_min"].includes(k)
-              ? 0
-              : null
-            : Number(f.get(k));
-      state.profile = await api("/profile", { method: "PUT", body: p });
-      toast("Preferências salvas.");
-    });
-  });
+  const profileForm = root.querySelector("#profile-form");
+  if (profileForm) {
+    let cancelled = false;
+    let timer,
+      revision = 0,
+      savedRevision = 0,
+      saving = null;
+    const status = profileForm.querySelector("#profile-save-status");
+    const save = async () => {
+      clearTimeout(timer);
+      if (cancelled) return false;
+      if (saving) {
+        await saving;
+        if (savedRevision === revision) return true;
+      }
+      if (savedRevision === revision) return true;
+      if (!profileForm.checkValidity()) {
+        status.textContent =
+          "Confira os campos inválidos. As últimas preferências salvas continuam ativas.";
+        return;
+      }
+      const current = revision;
+      status.textContent = "Salvando e atualizando o Radar…";
+      saving = (async () => {
+        try {
+          const f = new FormData(profileForm),
+            p = {
+              ...state.profile,
+              name: f.get("name"),
+              cities: f
+                .get("cities")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+              neighborhoods: f
+                .get("neighborhoods")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+              metro_stations: f
+                .get("metro_stations")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+              exclude_occupied: f.has("exclude_occupied"),
+              require_elevator: f.has("require_elevator"),
+              exclude_unknown_required: f.has("exclude_unknown_required"),
+              weights: Object.fromEntries(
+                ["price", "location", "quality"].map((k) => [
+                  k,
+                  Number(f.get(`weight_${k}`)),
+                ]),
+              ),
+            };
+          for (const k of [
+            "budget_min",
+            "budget_max",
+            "bathrooms_min",
+            "floor_min",
+            "area_min",
+            "area_max",
+            "bedrooms_min",
+            "parking_min",
+            "metro_max",
+            "monthly_max",
+            "alert_drop_percent",
+          ])
+            p[k] =
+              f.get(k) === ""
+                ? ["bedrooms_min", "parking_min", "bathrooms_min"].includes(k)
+                  ? 0
+                  : null
+                : Number(f.get(k));
+          state.profile = await api("/profile", { method: "PUT", body: p });
+
+          savedRevision = current;
+          state.apply = true;
+          state.page = 1;
+          if (current === revision) dirtyForms.delete(profileForm);
+          const result = await api(
+            "/properties?apply_profile=true&page_size=1",
+          );
+          if (current === revision)
+            status.textContent = `Salvo · ${result.total} imóveis atendem à sua busca no Radar.`;
+        } catch (error) {
+          status.textContent = `Não foi possível salvar: ${error.message}. Suas alterações continuam neste formulário.`;
+        }
+      })();
+      await saving;
+      saving = null;
+      return savedRevision === revision;
+    };
+    const scheduleSave = () => {
+      revision++;
+      clearTimeout(timer);
+      status.textContent = "Alterações pendentes…";
+      timer = setTimeout(save, 650);
+    };
+    profileForm.oninput = scheduleSave;
+    profileForm.onchange = scheduleSave;
+    profileForm.onsubmit = (e) => {
+      e.preventDefault();
+      save();
+    };
+    flushProfile = save;
+    cancelProfile = () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }
   root.querySelector("#budget-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
     busy(e.submitter, async () => {
@@ -872,13 +1099,34 @@ dialog.addEventListener("close", () => {
   if (lastDetailFocus?.isConnected) lastDetailFocus.focus();
   else main.focus({ preventScroll: true });
 });
-window.addEventListener("hashchange", () => {
+window.addEventListener("hashchange", async () => {
+  if (flushProfile) {
+    const save = flushProfile;
+    flushProfile = null;
+    const saved = await save();
+    if (!saved) {
+      flushProfile = save;
+      history.replaceState(null, "", "#profile");
+      toast(
+        "Corrija ou salve suas preferências antes de sair; seu rascunho foi preservado.",
+      );
+      return;
+    }
+    cancelProfile?.();
+    cancelProfile = null;
+  }
+  clearTimeout(searchTimer);
   detailVersion++;
   dialog.close();
   render();
   main.focus({ preventScroll: true });
 });
 function clearAccountState() {
+  cancelProfile?.();
+  cancelProfile = null;
+  clearTimeout(searchTimer);
+  lastPage = lastHtml = null;
+  flushProfile = null;
   renderVersion++;
   detailVersion++;
   dialog.close();
@@ -888,8 +1136,10 @@ function clearAccountState() {
   state.sourceResults = {};
   state.compare.clear();
   state.q = "";
+  state.construction = "all";
+  state.sort = "fit";
   state.tab = "all";
-  state.apply = false;
+  state.apply = true;
   state.page = 1;
   navigation();
   auth();
@@ -911,3 +1161,16 @@ if (hasSession()) {
   }
 }
 await render();
+
+// Refresh visible data only; never reload the document or interrupt an edit.
+const livePages = new Set(["radar", "sources", "alerts", "journey", "compare"]);
+async function syncVisiblePage() {
+  if (!state.user || !livePages.has(location.hash.slice(1) || "radar")) return;
+  await render({ background: true });
+}
+setInterval(syncVisiblePage, 15000);
+window.addEventListener("online", syncVisiblePage);
+window.addEventListener("focus", syncVisiblePage);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) syncVisiblePage();
+});
