@@ -1570,3 +1570,25 @@ dialog[data-mode="compare"] {
     grid-column: 1/-1;
   }
 }
+
+.price-change {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  border-radius: 6px;
+  font-size: 14px;
+  border-left: 4px solid;
+}
+.price-change strong {
+  font-size: 16px;
+}
+.price-down {
+  background: #edf4e8;
+  color: #244c35;
+}
+.price-up {
+  background: #fff3e3;
+  color: #79470d;
+}

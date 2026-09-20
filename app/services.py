@@ -34,6 +34,33 @@ def latest_price_change(price, prices):
     return price - previous if previous is not None else None
 
 
+def recent_price_change(history, now=None):
+    """Latest actual price transition observed within 30 days, not metadata refreshes."""
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=30)
+    previous = None
+    latest = None
+    for row in history:
+        price = row.get("price")
+        if price is None:
+            continue
+        if previous is not None and price != previous:
+            # Unknown observation dates cannot establish when a price changed.
+            try:
+                at = datetime.fromisoformat(row.get("observed_at") or "")
+                if at.tzinfo is None:
+                    at = at.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                at = None
+            latest = ({"previous_price": previous, "price": price,
+                       "amount": price - previous,
+                       "percent": round((price - previous) / previous * 100, 1) if previous else None,
+                       "observed_at": at.isoformat()}
+                      if at and cutoff <= at <= now else None)
+        previous = price
+    return latest
+
+
 def profile_for(conn, user_id):
     return {**storage.DEFAULT_PROFILE, **json.loads(conn.execute("SELECT profile FROM users WHERE id=?", (user_id,)).fetchone()[0])}
 
@@ -139,7 +166,7 @@ def enrich_all(conn, user_id):
     # Batch price reads rather than N extra queries.
     histories = {}
     for row in conn.execute("SELECT o.* FROM observations o JOIN properties p ON p.id=o.property_id WHERE p.user_id=? ORDER BY o.id", (user_id,)):
-        histories.setdefault(row["property_id"], []).append(row["price"])
+        histories.setdefault(row["property_id"], []).append(dict(row))
     for item in items:
         t = track.get(item["id"], {})
         item.update(saved=bool(t.get("saved")), stage=t.get("stage", "saved"), notes=t.get("notes", ""),
@@ -150,7 +177,8 @@ def enrich_all(conn, user_id):
             if value != "unknown":
                 item[key] = value
         prices = histories.get(item["id"], [])
-        item["price_change"] = latest_price_change(item["price"], prices)
+        item["price_change"] = latest_price_change(item["price"], [row["price"] for row in prices])
+        item["price_change_30d"] = recent_price_change(prices)
         item["evaluation"] = evaluate_property(item, items, profile)
     return items
 
@@ -170,6 +198,7 @@ def detail(conn, user_id, pid):
     item["evaluation"] = evaluate_property(item, values, profile_for(conn, user_id))
     item["history"] = [dict(r) for r in conn.execute("SELECT price,observed_at,recorded_at FROM observations WHERE property_id=? ORDER BY id", (pid,))]
     item["price_change"] = latest_price_change(item["price"], [row["price"] for row in item["history"]])
+    item["price_change_30d"] = recent_price_change(item["history"])
     item["source_links"] = [{"source": p["source"], "url": p.get("url")} for p in values if p["canonical_key"] == item["canonical_key"]]
     item["provenance"] = {k: {"source": item["source"], "observed_at": item.get("observed_at"), "origin": item["data_origin"]}
         for k in ("price", "area", "address", "condo_fee", "property_tax", "metro_minutes") if item.get(k) is not None}

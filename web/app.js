@@ -12,6 +12,7 @@ import {
   toast,
   score,
   opportunity,
+  priceChange,
   photo,
   card,
   stages,
@@ -37,8 +38,7 @@ const state = {
   page: 1,
 };
 const nav = [
-  ["radar", "◉", "Radar de oportunidades"],
-  ["journey", "♡", "Minha jornada"],
+  ["radar", "◉", "Radar"],
   ["budget", "▤", "Planejar a compra"],
   ["settings", "⚙", "Configurações"],
   ["alerts", "◎", "Notificações"],
@@ -103,7 +103,8 @@ async function render({ background = false } = {}) {
   if (background && !safeToSync()) return;
   const v = ++renderVersion;
   let page = location.hash.slice(1) || "radar";
-  if (["profile", "sources", "compare"].includes(page)) {
+  if (["profile", "sources", "compare", "journey"].includes(page)) {
+    if (page === "journey") state.tab = "saved";
     if (page === "sources") state.settingsTab = "sources";
     const compareRequested = page === "compare";
     page = page === "sources" ? "settings" : "radar";
@@ -220,7 +221,6 @@ async function radar() {
     sort: state.sort,
     construction: state.construction,
     saved: state.tab === "saved",
-    drops: state.tab === "drops",
     apply_profile: state.apply,
     page: 1,
     page_size: 20,
@@ -259,7 +259,6 @@ async function radar() {
         "",
       )}</section>${await profile()}<div class="radar-actions"><button class="primary" data-create-alert>Criar alerta desta busca</button><span class="small">Somente imóveis para compra · filtros aplicados automaticamente</span></div>${state.compare.size ? `<div class="comparison-tray"><b>${state.compare.size} de 4 imóveis selecionados</b><button data-open-compare>Abrir comparador →</button></div>` : ""}<div class="radar-grid"><section><div class="tabs">${[
       ["all", "Todos"],
-      ["drops", "Preço caiu"],
       ["saved", "Salvos"],
     ]
       .map(
@@ -345,7 +344,7 @@ async function detail(id) {
       )
       .join(
         "",
-      )}</ul></details>${p.latitude != null && p.longitude != null ? link(`https://www.openstreetmap.org/?mlat=${encodeURIComponent(p.latitude)}&mlon=${encodeURIComponent(p.longitude)}#map=17/${encodeURIComponent(p.latitude)}/${encodeURIComponent(p.longitude)}`, "Ver localização informada no mapa") : ""}</section></div><div><div class="price">${money(p.price)}</div><p>${money(p.price / p.area)}/m²</p>${p.combined_monthly_cost != null ? `<div class="check-row"><span>Condomínio + IPTU combinados (origem)</span><b>${money(p.combined_monthly_cost)}${p.combined_cost_period === "unknown" ? " · período a confirmar" : "/mês"}</b></div><p class="small">Total informado pela fonte; componentes e periodicidade do IPTU não confirmados.</p>` : ""}<div class="check-row"><span>Condomínio mensal</span><b>${money(p.condo_fee)}</b></div><div class="check-row"><span>IPTU (${esc({ annual: "anual", monthly: "mensal", unknown: "periodicidade desconhecida" }[p.tax_period] || "não informado")})</span><b>${money(p.property_tax)}</b></div><section class="panel"><h2>${opportunity(e)}</h2><p>${e.comparables_count || 0} comparáveis · confiança ${confidence(e.confidence)}</p><p>Referência: ${money(e.benchmark_m2)}/m². Preços de anúncios, não de transações.</p><details><summary>Ver comparáveis usados</summary>${(e.comparables || []).map((c) => `<p><button data-detail="${c.id}">Imóvel ${c.id}</button> ${money(c.price)} · ${number(c.area)} m² · ${money(c.price_m2)}/m²</p>`).join("") || "<p>Amostra insuficiente.</p>"}</details></section><section class="panel"><h3>Aderência ${score(e.fit_score)}</h3><p>Qualidade observável ${score(e.quality_score)}</p>${e.quality_coverage != null ? `<p>Cobertura da qualidade: ${number(e.quality_coverage)}% dos fatores conhecidos.</p>` : ""}${e.fit_coverage != null ? `<p>Cobertura da aderência: ${number(e.fit_coverage)}% dos requisitos conhecidos.</p>` : ""}<p>${e.eligible ? "Atende aos requisitos conhecidos." : "Não atende a todos os requisitos da sua busca."}</p><ul>${(e.reasons || []).map((r) => `<li>${esc(r)}</li>`).join("")}</ul><details><summary>Fatores e pesos</summary>${[...(e.fit_factors || []), ...(e.quality_factors || [])].map((f) => `<div class="check-row"><span>${esc(f.label)}</span><b>${esc(f.score ?? f.value ?? "Pendente")} · peso ${number(f.weight)}</b></div>`).join("")}<p>Versão: ${esc(e.score_version)}</p></details></section><button class="primary" data-save="${id}" data-saved="${!!p.saved}">${p.saved ? "Remover dos salvos" : "Salvar na minha jornada"}</button><a href="#journey" data-close>Organizar visita e notas →</a></div></div>`;
+      )}</ul></details>${p.latitude != null && p.longitude != null ? link(`https://www.openstreetmap.org/?mlat=${encodeURIComponent(p.latitude)}&mlon=${encodeURIComponent(p.longitude)}#map=17/${encodeURIComponent(p.latitude)}/${encodeURIComponent(p.longitude)}`, "Ver localização informada no mapa") : ""}</section></div><div><div class="price">${money(p.price)}</div>${priceChange(p)}<p>${money(p.price / p.area)}/m²</p>${p.combined_monthly_cost != null ? `<div class="check-row"><span>Condomínio + IPTU combinados (origem)</span><b>${money(p.combined_monthly_cost)}${p.combined_cost_period === "unknown" ? " · período a confirmar" : "/mês"}</b></div><p class="small">Total informado pela fonte; componentes e periodicidade do IPTU não confirmados.</p>` : ""}<div class="check-row"><span>Condomínio mensal</span><b>${money(p.condo_fee)}</b></div><div class="check-row"><span>IPTU (${esc({ annual: "anual", monthly: "mensal", unknown: "periodicidade desconhecida" }[p.tax_period] || "não informado")})</span><b>${money(p.property_tax)}</b></div><section class="panel"><h2>${opportunity(e)}</h2><p>${e.comparables_count || 0} comparáveis · confiança ${confidence(e.confidence)}</p><p>Referência: ${money(e.benchmark_m2)}/m². Preços de anúncios, não de transações.</p><details><summary>Ver comparáveis usados</summary>${(e.comparables || []).map((c) => `<p><button data-detail="${c.id}">Imóvel ${c.id}</button> ${money(c.price)} · ${number(c.area)} m² · ${money(c.price_m2)}/m²</p>`).join("") || "<p>Amostra insuficiente.</p>"}</details></section><section class="panel"><h3>Aderência ${score(e.fit_score)}</h3><p>Qualidade observável ${score(e.quality_score)}</p>${e.quality_coverage != null ? `<p>Cobertura da qualidade: ${number(e.quality_coverage)}% dos fatores conhecidos.</p>` : ""}${e.fit_coverage != null ? `<p>Cobertura da aderência: ${number(e.fit_coverage)}% dos requisitos conhecidos.</p>` : ""}<p>${e.eligible ? "Atende aos requisitos conhecidos." : "Não atende a todos os requisitos da sua busca."}</p><ul>${(e.reasons || []).map((r) => `<li>${esc(r)}</li>`).join("")}</ul><details><summary>Fatores e pesos</summary>${[...(e.fit_factors || []), ...(e.quality_factors || [])].map((f) => `<div class="check-row"><span>${esc(f.label)}</span><b>${esc(f.score ?? f.value ?? "Pendente")} · peso ${number(f.weight)}</b></div>`).join("")}<p>Versão: ${esc(e.score_version)}</p></details></section><button class="primary" data-save="${id}" data-saved="${!!p.saved}">${p.saved ? "Remover dos salvos" : "Salvar imóvel"}</button></div></div>`;
   if (!dialog.open) dialog.showModal();
   bind(dialog);
   dialog.querySelector("[data-close]").focus();
