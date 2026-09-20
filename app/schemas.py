@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from typing import Literal
+from .locations import canonical_city
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -78,7 +79,8 @@ class Profile(StrictModel):
     bedrooms_min: int = Field(default=2, ge=0, le=100)
     parking_min: int = Field(default=0, ge=0, le=100)
     metro_max: float | None = Field(default=15, gt=0, le=300)
-    monthly_max: float | None = Field(default=580, gt=0, le=1e7)
+    condo_max: float | None = Field(default=None, ge=0, le=1e7)
+    monthly_max: float | None = Field(default=580, ge=0, le=1e7)
     cities: list[str] = Field(default_factory=lambda: ["São Paulo"], max_length=50)
     neighborhoods: list[str] = Field(default_factory=list, max_length=100)
     require_elevator: bool = False
@@ -88,10 +90,11 @@ class Profile(StrictModel):
 
     @field_validator("cities", "neighborhoods", "metro_stations")
     @classmethod
-    def valid_locations(cls, values):
+    def valid_locations(cls, values, info):
         if any(len(v) > 150 for v in values):
             raise ValueError("Localidade muito longa")
-        return list(dict.fromkeys(v.strip() for v in values if v.strip()))
+        normalize = canonical_city if info.field_name == "cities" else lambda value: " ".join(value.split())
+        return list(dict.fromkeys(normalize(v) for v in values if v.strip()))
 
     @model_validator(mode="after")
     def valid_range(self):

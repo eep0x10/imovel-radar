@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROFILE = {"budget_min": None, "bathrooms_min": 0, "floor_min": None, "exclude_occupied": False, "metro_stations": [], "search_bounds": [], "name": "Minha primeira casa", "budget_max": 330000, "area_min": 35,
     "area_max": 70, "bedrooms_min": 2, "parking_min": 0, "metro_max": 15,
-    "monthly_max": 580, "cities": ["São Paulo"], "neighborhoods": [],
+    "condo_max": None, "monthly_max": 580, "cities": ["São Paulo"], "neighborhoods": [],
     "require_elevator": False, "weights": {"price": 40, "location": 35, "quality": 25},
     "alert_drop_percent": 5, "exclude_unknown_required": False}
 
@@ -103,6 +103,8 @@ CREATE TABLE IF NOT EXISTS saved_search_matches(search_id INTEGER NOT NULL REFER
         conn.execute("INSERT OR IGNORE INTO schema_versions VALUES(3,?)", (now_iso(),))
         conn.execute("PRAGMA user_version=3")
         conn.execute("UPDATE sources SET enabled=0,authorized=0 WHERE kind='portal' AND name IN ('OLX','VivaReal')")
+        from .cost_migration import repair_portal_cost_periods
+        repair_portal_cost_periods(conn)
 
 
 @contextmanager

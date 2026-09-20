@@ -115,6 +115,11 @@ def _qa_record(hit, observed):
     identifier=hit.get('_id',data.get('id'))
     if identifier is None: raise ValueError('Anúncio sem identificador')
     raw={**data,'source':'QuintoAndar','external_id':str(identifier),'url':f'https://www.quintoandar.com.br/imovel/{quote(str(identifier),safe="")}/comprar/','observed_at':observed}
+    # The sale search field sums condominium and the monthly IPTU installment.
+    # Verified against public detail price panels (IPTU is displayed as 12x).
+    if data.get('iptuPlusCondominium') is not None:
+        raw['combined_monthly_cost'] = data['iptuPlusCondominium']
+        raw['combined_cost_period'] = 'monthly'
     image=data.get('coverImage')
     if image and str(image).startswith(('http://','https://')):
         raw['image_url']=image
@@ -213,10 +218,10 @@ def collect_portal(portal: str, profile: dict) -> dict:
     """
     if portal not in ('quintoandar', 'loft'):
         raise ValueError('Portal desconhecido')
+    from .locations import canonical_city
     cities = profile.get('cities') or ['São Paulo']
     for city in cities:
-        normalized = ''.join(c for c in unicodedata.normalize('NFD', str(city).lower()) if not unicodedata.combining(c)).strip()
-        if normalized not in ('sao paulo', 'sao paulo, sp', 'sao paulo - sp'):
+        if canonical_city(city) != 'São Paulo':
             raise ValueError('Coleta automática atualmente validada somente para São Paulo/SP')
     bounds = profile.get('search_bounds') or [DEFAULT_SP_BOUNDS]
     if isinstance(bounds, dict): bounds = [bounds]
@@ -254,7 +259,7 @@ def collect_portal(portal: str, profile: dict) -> dict:
     neighborhoods = profile.get('neighborhoods') or []
     if neighborhoods:
         def normalized_location(value):
-            return ''.join(c for c in unicodedata.normalize('NFD', str(value).casefold()) if not unicodedata.combining(c)).strip()
+            return ' '.join(''.join(c for c in unicodedata.normalize('NFD', str(value).casefold()) if not unicodedata.combining(c)).split())
         requested = {normalized_location(value) for value in neighborhoods}
         result['records'] = [r for r in result['records'] if not r.get('neighborhood') or normalized_location(r['neighborhood']) in requested]
         result['warnings'].append('Bairros aplicados como filtro local aos resultados coletados; bairros desconhecidos preservados para avaliação. A paginação limitada não cobre necessariamente todos os anúncios desses bairros.')
@@ -346,13 +351,22 @@ def _parse_quinto_detail(html):
             result.update(latitude=lat,longitude=lng,coordinate_precision='portal_reported')
         for incoming,outgoing in [('street','address'),('neighborhood','neighborhood'),('city','city')]:
             if isinstance(address.get(incoming),str) and address[incoming].strip(): result[outgoing]=address[incoming].strip()[:2000]
-    # No inference from condoType=Normal or iptuType=NaoExiste: neither is a period.
+    # Read the public price panel, never infer tax periodicity from iptuType.
+    from html import unescape
+    visible_html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S | re.I)
+    price_text = unescape(re.sub(r'<[^>]+>', ' ', visible_html))
     periods={'monthly':'monthly','mensal':'monthly','annual':'annual','anual':'annual'}
     period=periods.get(str(info.get('iptuPeriod') or info.get('propertyTaxPeriod') or '').lower())
+    if not period and re.search(r'IPTU\s+12\s*x\s+R\$', price_text, re.I):
+        period = 'monthly'
     if period and finite(info.get('iptu')) and info['iptu']>=0:
         result.update(property_tax=info['iptu'],tax_period=period)
     condo_period=periods.get(str(info.get('condoPeriod') or '').lower())
-    if condo_period=='monthly' and finite(info.get('condoPrice')) and info['condoPrice']>=0: result['condo_fee']=info['condoPrice']
+    # condoPrice is the condominium charge displayed by the public detail panel.
+    if condo_period in (None, 'monthly') and finite(info.get('condoPrice')) and info['condoPrice']>=0:
+        result['condo_fee']=info['condoPrice']
+    if 'condo_fee' in result and result.get('tax_period') == 'monthly':
+        result.update(combined_monthly_cost=result['condo_fee']+result['property_tax'], combined_cost_period='monthly')
     for installation in info.get('installations') or []:
         if isinstance(installation,dict) and installation.get('key')=='ELEVADOR' and installation.get('value') in ('SIM','NAO'):
             result['elevator']=installation['value']=='SIM'
@@ -384,7 +398,7 @@ def enrich_quinto_details(records, limit=50):
                     row=conn.execute('SELECT value FROM runtime WHERE key=?',(key,)).fetchone()
                 if row:
                     entry=json.loads(row[0]);timestamp=datetime.fromisoformat(entry['observed_at'])
-                    if timestamp.tzinfo is not None and now-timedelta(days=7)<=timestamp<=now:
+                    if entry.get('cost_schema') == 2 and timestamp.tzinfo is not None and now-timedelta(days=7)<=timestamp<=now:
                         cached=entry
             except (sqlite3.Error,ValueError,KeyError,TypeError): pass
         if cached is None:
@@ -393,7 +407,7 @@ def enrich_quinto_details(records, limit=50):
             requests+=1
             try:
                 fields=_parse_quinto_detail(_quinto_detail_html(identifier,timeout=min(20,max(.1,deadline-time.monotonic()))))
-                cached={'observed_at':datetime.now(timezone.utc).isoformat(),'fields':fields}
+                cached={'observed_at':datetime.now(timezone.utc).isoformat(),'fields':fields,'cost_schema':2}
                 with storage.transaction() as conn:
                     conn.execute('INSERT INTO runtime(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',(key,storage.dumps(cached)))
             except (ValueError,sqlite3.Error) as error:
@@ -401,10 +415,15 @@ def enrich_quinto_details(records, limit=50):
                 if any(reason in str(error) for reason in ('HTTP 403', 'HTTP 429', 'HTTP 308', 'Redirecionamento')): blocked=True
                 result['warnings'].append(str(error));result['records'].append(record);continue
         memo[key]=cached
-        record.update(cached['fields'])
+        fields = dict(cached['fields'])
+        # The current search aggregate is fresher than the seven-day detail cache.
+        if record.get('combined_monthly_cost') is not None and record.get('combined_cost_period') == 'monthly':
+            fields.pop('combined_monthly_cost', None)
+            fields.pop('combined_cost_period', None)
+        record.update(fields)
         record['detail_observed_at']=cached['observed_at']
         provenance=dict(record.get('provenance') or {})
-        provenance.update({field:{'source':'QuintoAndar detalhe público','observed_at':cached['observed_at']} for field in cached['fields']})
+        provenance.update({field:{'source':'QuintoAndar detalhe público','observed_at':cached['observed_at']} for field in fields})
         record['provenance']=provenance
         result['records'].append(record)
     if partial: result['warnings'].append('Detalhamento parcial: limite de tempo, páginas ou falha; campos desconhecidos foram preservados.')

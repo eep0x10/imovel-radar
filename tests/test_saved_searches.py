@@ -118,3 +118,22 @@ def test_upgrade_v2_preserves_existing_rows(tmp_path, monkeypatch):
         assert conn.execute('SELECT saved_search_id FROM alerts').fetchone()[0] is None
         assert conn.execute('PRAGMA user_version').fetchone()[0] == 3
         assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
+
+
+def test_map_filter_applies_to_existing_radar_and_frozen_alert(client):
+    a = account(client)
+    profile = client.get('/api/profile', headers=a).json()
+    bounds = [{'north': -23.5, 'south': -23.6, 'west': -46.7, 'east': -46.6}]
+    profile = {**profile, 'search_bounds': bounds}
+    commit(client, a, [listing(external_id='inside', latitude=-23.55, longitude=-46.65),
+                       listing(external_id='outside', latitude=-23.7, longitude=-46.8)])
+    assert client.put('/api/profile', headers=a, json=profile).status_code == 200
+    radar = client.get('/api/properties', headers=a, params={'apply_profile': 'true'}).json()
+    assert [item['external_id'] for item in radar['items']] == ['inside']
+    saved = search(client, a, profile=profile)
+    assert saved['baseline_count'] == 1
+    assert client.put('/api/profile', headers=a, json={**profile, 'search_bounds': []}).status_code == 200
+    commit(client, a, [listing(external_id='new-outside', latitude=-23.7, longitude=-46.8),
+                       listing(external_id='new-inside', latitude=-23.55, longitude=-46.65)])
+    assert feed(client, a)['total'] == 1
+    assert client.get('/api/properties', headers=a, params={'apply_profile': 'true'}).json()['total'] == 4

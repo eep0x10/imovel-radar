@@ -1,3 +1,4 @@
+import json
 """Portal contract fixtures; these unit tests never prove current live access."""
 from unittest.mock import patch
 from urllib.parse import parse_qs,urlsplit
@@ -206,7 +207,7 @@ def test_public_detail_range_no_exact_floor_and_seven_day_cache(detail_db):
     value=first['records'][0]
     assert value['floor'] is None and value['floor_min_reported']==0 and value['floor_max_reported']==3
     assert value['latitude']==-23.55 and value['elevator'] is True
-    assert value['condo_fee'] is None and value['tax_period']=='unknown'
+    assert value['condo_fee'] == 400 and value['tax_period']=='unknown'
     assert second['records'][0]['detail_observed_at']==value['detail_observed_at']
     assert row['floor'] is None and 'floor_min_reported' not in row
 
@@ -275,3 +276,46 @@ def test_loft_prefers_public_card_thumbnail_route():
     with patch('app.portal_collectors._request_json',return_value=loft_page([loft(image='banner.jpg',image_thumbnail='banner_thumbnail.jpg')])):
         result=collect_portal('loft',{})
     assert result['records'][0]['image_url']=='https://content.loft.com.br/homes/1/banner_thumbnail.jpg'
+
+
+def test_quinto_trusted_search_adapter_has_monthly_combined_cost():
+    from app.portal_collectors import _qa_record
+    from app.ingestion import parse_upload
+    raw = _qa_record({'_id':'123','_source':{'salePrice':300000,'area':50,'iptuPlusCondominium':589}}, '2026-09-20T00:00:00+00:00')
+    value = parse_upload(json.dumps([raw]).encode(), 'records.json')['records'][0]
+    assert value['combined_monthly_cost'] == 589
+    assert value['combined_cost_period'] == 'monthly'
+    assert value['condo_fee'] is None
+
+
+def test_quinto_tax_installment_requires_public_period_evidence():
+    from app.portal_collectors import _parse_quinto_detail
+    info = {'condoPrice':507,'iptu':82,'iptuType':'Normal'}
+    unknown = _parse_quinto_detail(detail_html(info))
+    assert unknown['condo_fee'] == 507
+    assert 'property_tax' not in unknown
+    known = _parse_quinto_detail('<div>IPTU <span>12x R$ 82</span></div>' + detail_html(info))
+    assert known['property_tax'] == 82 and known['tax_period'] == 'monthly'
+    assert known['combined_monthly_cost'] == 589
+
+
+@pytest.mark.parametrize('city',['São   Paulo','Sao Paulo,SP','São Paulo - SP'])
+def test_location_whitespace_and_city_suffixes_match_domain(city):
+    with patch('app.portal_collectors._request_json',return_value=qa_page([qa(regionName='Vila Mariana')])):
+        result = collect_portal('quintoandar', {'cities':[city], 'neighborhoods':['Vila   Mariana']})
+    assert len(result['records']) == 1
+
+
+
+def test_current_search_total_is_not_overwritten_by_cached_detail(tmp_path, monkeypatch):
+    from app import storage
+    from app.portal_collectors import enrich_quinto_details
+    monkeypatch.setenv('IMOVEL_DB_PATH', str(tmp_path / 'cost-cache.sqlite3'))
+    storage.initialize()
+    html = '<div>IPTU 12x R$ 82</div>' + detail_html({'condoPrice':507,'iptu':82})
+    with patch('app.portal_collectors._quinto_detail_html', return_value=html):
+        enrich_quinto_details([{'source':'QuintoAndar','external_id':'123'}])
+    with patch('app.portal_collectors._quinto_detail_html', side_effect=AssertionError('cache expected')):
+        row = enrich_quinto_details([{'source':'QuintoAndar','external_id':'123','combined_monthly_cost':650,'combined_cost_period':'monthly'}])['records'][0]
+    assert row['combined_monthly_cost'] == 650
+    assert row['condo_fee'] == 507

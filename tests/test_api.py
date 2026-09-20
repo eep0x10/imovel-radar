@@ -255,3 +255,24 @@ def test_search_api_uses_submitted_profile_and_isolates_accounts(client, monkeyp
     assert client.post('/api/search', headers=a, json={**old, 'area_min':100, 'area_max':70}).status_code == 422
     assert client.get('/api/search').status_code == 401
     assert len(calls) == 1
+
+
+
+def test_condominium_filter_roundtrip_and_known_costs(client):
+    headers = account(client)
+    profile = client.get("/api/profile", headers=headers).json()
+    profile.update(condo_max=500, monthly_max=None, metro_max=None, exclude_unknown_required=False)
+    assert client.put("/api/profile", headers=headers, json=profile).status_code == 200
+    for key, fee in (("below", 450), ("edge", 500), ("above", 501), ("missing-fee", None)):
+        response = client.post("/api/properties", headers=headers, json=listing(external_id=key, condo_fee=fee))
+        assert response.status_code == 201, response.text
+    rows = client.get("/api/properties?apply_profile=true", headers=headers).json()["items"]
+    assert {p["external_id"] for p in rows} == {"below", "edge", "missing-fee"}
+    assert client.get("/api/profile", headers=headers).json()["condo_max"] == 500
+    profile["exclude_unknown_required"] = True
+    assert client.put("/api/profile", headers=headers, json=profile).status_code == 200
+    rows = client.get("/api/properties?apply_profile=true", headers=headers).json()["items"]
+    assert {p["external_id"] for p in rows} == {"below", "edge"}
+    profile.update(condo_max=0, monthly_max=0)
+    assert client.put("/api/profile", headers=headers, json=profile).status_code == 200
+    assert client.get("/api/properties?apply_profile=true", headers=headers).json()["total"] == 0

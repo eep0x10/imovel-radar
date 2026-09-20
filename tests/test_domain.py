@@ -60,7 +60,7 @@ def test_sparse_quality_has_no_grade_and_keeps_evidence_coverage():
     assert result["quality_coverage"] == 35
     assert result["fit_score"] == 35
     assert result["fit_coverage"] is None  # No configured personal requirements.
-    assert result["score_version"] == "1.1.0"
+    assert result["score_version"] == "1.2.0"
 
 
 def test_missing_requirements_never_improve_fit_and_elevator_contributes():
@@ -263,3 +263,24 @@ def test_full_cash_purchase_has_no_interest():
     result = simulate_budget(budget(down_payment=300000))
     assert result["principal"] == result["total_paid"] == 0
     assert result["first_month_total"] == 500
+
+
+@pytest.mark.parametrize("fee,limit,eligible,pending", [
+    (400, 500, True, False), (500, 500, True, False),
+    (500.01, 500, False, False), (0, 0, True, False),
+    (1, 0, False, False), (None, 500, True, True),
+])
+def test_condominium_ceiling_is_separate_from_tax(fee, limit, eligible, pending):
+    p = home(condo_fee=fee, property_tax=1200, tax_period="annual")
+    result = evaluate_property(p, [], {"condo_max": limit}, NOW)
+    assert result["eligible"] is eligible
+    assert ("Condomínio máximo" in result["pending_requirements"]) is pending
+    if pending:
+        assert not evaluate_property(p, [], {"condo_max": limit, "exclude_unknown_required": True}, NOW)["eligible"]
+
+
+def test_combined_fee_is_not_fabricated_condominium():
+    p = home(combined_monthly_cost=700, combined_cost_period="monthly")
+    result = evaluate_property(p, [], {"condo_max": 500}, NOW)
+    assert "Condomínio máximo" in result["pending_requirements"]
+    assert not evaluate_property(p, [], {"monthly_max": 500}, NOW)["eligible"]

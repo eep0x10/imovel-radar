@@ -27,3 +27,16 @@ Benchmark local com 1.009 registros: avaliação original 11,639 s, agrupada 1,6
 Prontidão operacional é limitada pela disponibilidade externa e pela execução contínua local. Esses testes não certificam disponibilidade de todos os portais nem implantação pública.
 
 QA adicional: com Radar em 100 m², alerta previamente salvo em 70 m² encontrou dois novos anúncios de 82 m² no provedor controlado e exibiu duas notificações; sem alterar os critérios atuais da conta. Desktop e viewport de 390 px revisados, incluindo erro de intervalo, progresso, resultados e feed de notificações. Controles móveis de ordenação/fase receberam linhas próprias para não truncar as opções. Backup de 1.009 registros restaurado em banco isolado com integrity_check=ok.
+
+
+## Correção dos filtros — 1.5.1
+
+Separados condomínio mensal (`condo_max`) e condomínio + IPTU (`monthly_max`), preservando o limite anterior. Zero é um limite real; vazio desativa o respectivo limite. Dados insuficientes têm rótulo “Filtros a confirmar”; a exclusão de desconhecidos continua uma escolha explícita. IPTU anual é dividido por 12 somente quando a periodicidade é conhecida.
+
+A origem do defeito principal era a periodicidade descartada pelo adaptador QuintoAndar: todo custo combinado ficava pendente. O contrato foi conferido em três anúncios públicos. Migração idempotente corrige apenas registros vinculados ao coletor QuintoAndar, sem alterar importações genéricas, preço, observações ou favoritos. Na base local, 264 registros foram reparados após snapshot; 1.009 imóveis e 1.408 observações preservados, integrity_check=ok.
+
+Também corrigidos: regiões aplicadas apenas na coleta e ignoradas no Radar, reativação visual de região sem restaurar coordenadas, aliases de São Paulo e espaços em bairros, anúncios vendidos/inativos, validação inteira de quartos/vagas/andar e serialização concorrente de salvamentos. Buscas salvas mantêm seu snapshot independente. Ranking versionado em 1.2.0 para refletir cobertura geográfica e condomínio separado.
+
+QA isolado pelo navegador integrado: condomínio 500 elimina 700, mantém 400 e 500; desconhecido aparece identificado e é removido ao ativar exclusão. Total mensal 500 mantém condomínio 400 + IPTU anual 1.200; teto de condomínio zero retorna vazio. Desativar e reativar região restaura a restrição. Formulário e resultados preservados sem navegação/reload; desktop e 390 px inspecionados. Estilo e integração Anime.js existentes mantidos; feedback de salvamento é imediato, sem nova animação de formulário.
+
+Suite: 284 testes aprovados, incluindo matriz de limites, valores ausentes, mapa e alerta congelado. Auditoria local após a correção: 154 correspondências entre 1.008 anúncios de compra, nenhuma acima do custo mensal conhecido configurado. Isso não comprova custos ausentes nem disponibilidade futura dos portais.

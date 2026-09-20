@@ -294,7 +294,7 @@ async function radar() {
       )
       .join(
         "",
-      )}</select><button>Pesquisar nas fontes</button></form><p class="small">Sem indicação de planta ou obra, o imóvel é classificado como pronto. Confirme a fase no anúncio.</p><label class="small"><input id="apply-profile" type="checkbox" ${state.apply ? "checked" : ""}> Aplicar minha busca</label><p class="listing-count">${r.total} imóveis encontrados entre ${r.summary.total} coletados · atualização: ${date(r.last_updated)}</p><div id="radar-list">${r.items.length ? r.items.map((p) => card(p, state.compare)).join("") : `<div class="empty"><h3>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum imóvel nesses filtros" : "Seu radar está pronto para começar"}</h3><p>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum anúncio já coletado corresponde a todos os filtros. Consulte as fontes com os critérios atuais ou revise limites de área, quartos, despesas e regiões geográficas." : "Configure a coleta dos portais em Fontes e atualização para trazer anúncios reais ao radar. Você também pode importar um arquivo ou conectar um feed."}</p><a href="#settings" data-settings-link="sources">Configurar coleta e fontes →</a><p><button data-reset>Limpar filtros</button></p></div>`}</div><div id="radar-more" class="pagination" aria-live="polite">${radarLoaded < radarTotal ? '<button type="button" data-load-more>Carregar mais imóveis</button>' : "<span>Todos os imóveis desta busca foram exibidos.</span>"}</div></section><aside class="rail"><div class="daily"><p class="eyebrow">SUA DECISÃO, COM CONTEXTO</p><h2>Preço bom precisa de evidência.</h2><p>Avaliação de qualidade, aderência pessoal e preço relativo são medidas diferentes. Poucos comparáveis? A estimativa fica pendente.</p><a href="#alerts">Ver notificações →</a></div><div class="subtle">Anúncios importados não se atualizam sozinhos. Em Fontes e atualização, confira quais coletas estão ativas, suas falhas e a saúde da rotina diária.</div></aside></div>`
+      )}</select><button>Pesquisar nas fontes</button></form><p class="small">Texto e fase refinam os resultados coletados. Sem indicação de planta ou obra, o imóvel é classificado como pronto; confirme no anúncio.</p><label class="small"><input id="apply-profile" type="checkbox" ${state.apply ? "checked" : ""}> Aplicar minha busca</label><p class="listing-count">${r.total} imóveis encontrados entre ${r.summary.total} coletados · atualização: ${date(r.last_updated)}</p><div id="radar-list">${r.items.length ? r.items.map((p) => card(p, state.compare)).join("") : `<div class="empty"><h3>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum imóvel nesses filtros" : "Seu radar está pronto para começar"}</h3><p>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum anúncio já coletado corresponde a todos os filtros. Consulte as fontes com os critérios atuais ou revise limites de área, quartos, despesas e regiões geográficas." : "Configure a coleta dos portais em Fontes e atualização para trazer anúncios reais ao radar. Você também pode importar um arquivo ou conectar um feed."}</p><a href="#settings" data-settings-link="sources">Configurar coleta e fontes →</a><p><button data-reset>Limpar filtros</button></p></div>`}</div><div id="radar-more" class="pagination" aria-live="polite">${radarLoaded < radarTotal ? '<button type="button" data-load-more>Carregar mais imóveis</button>' : "<span>Todos os imóveis desta busca foram exibidos.</span>"}</div></section><aside class="rail"><div class="daily"><p class="eyebrow">SUA DECISÃO, COM CONTEXTO</p><h2>Preço bom precisa de evidência.</h2><p>Avaliação de qualidade, aderência pessoal e preço relativo são medidas diferentes. Poucos comparáveis? A estimativa fica pendente.</p><a href="#alerts">Ver notificações →</a></div><div class="subtle">Anúncios importados não se atualizam sozinhos. Em Fontes e atualização, confira quais coletas estão ativas, suas falhas e a saúde da rotina diária.</div></aside></div>`
   );
 }
 async function detail(id) {
@@ -512,6 +512,7 @@ function activeCriteria(p) {
     p.bedrooms_min ? `${p.bedrooms_min}+ quartos` : null,
     p.parking_min ? `${p.parking_min}+ vagas` : null,
     p.floor_min != null ? `andar ${p.floor_min}+` : null,
+    p.condo_max != null ? `condomínio até ${money(p.condo_max)}` : null,
     p.monthly_max != null
       ? `condomínio + IPTU até ${money(p.monthly_max)}`
       : null,
@@ -565,6 +566,7 @@ async function startSourceSearch() {
     toast("Corrija os filtros antes de pesquisar. A coleta não foi iniciada.");
     return;
   }
+  if (epoch !== accountEpoch) return;
   const incoming = await api("/search", {
     method: "POST",
     body: state.profile,
@@ -590,7 +592,13 @@ async function profile() {
   const numeric = (items) =>
     items
       .map(([key, label]) =>
-        field(key, label, p[key] ?? "", "number", 'min="0" step="any"'),
+        field(
+          key,
+          label,
+          p[key] ?? "",
+          "number",
+          `min="${["budget_max", "area_min", "area_max", "metro_max"].includes(key) ? "0.01" : "0"}" step="${["bedrooms_min", "bathrooms_min", "parking_min", "floor_min"].includes(key) ? "1" : "any"}"`,
+        ),
       )
       .join("");
   return `<form id="profile-form" class="radar-filters panel"><h2>Filtros da sua busca</h2><p>Área mínima e máxima definem um intervalo. Para buscar a partir de 70 m², use mínima 70 e deixe a máxima vazia. Os critérios avançados também restringem os resultados.</p><div class="filter-fields">${numeric(
@@ -607,7 +615,8 @@ async function profile() {
       ["bathrooms_min", "Banheiros mínimos"],
       ["floor_min", "Andar mínimo"],
       ["metro_max", "Metrô a pé: máximo (min)"],
-      ["monthly_max", "Condomínio + IPTU máximo (R$)"],
+      ["condo_max", "Condomínio máximo por mês (R$)"],
+      ["monthly_max", "Condomínio + IPTU máximo por mês (R$)"],
     ],
   )}${field("metro_stations", "Estações preferidas (separadas por vírgula)", (p.metro_stations || []).join(", "))}${["price", "location", "quality"].map((k) => field(`weight_${k}`, `Peso: ${{ price: "Preço", location: "Localização", quality: "Qualidade" }[k]}`, p.weights?.[k] ?? 0, "number", 'min="0" max="100" required')).join("")}${field("alert_drop_percent", "Queda de preço mínima (%)", p.alert_drop_percent ?? 5, "number", 'min="0" max="100" required')}</div><div class="checks">${p.search_bounds?.length ? `<label><input type="checkbox" name="use_bounds" checked> Restringir às ${p.search_bounds.length} regiões geográficas antigas da conta (desmarque para buscar em toda São Paulo)</label>` : ""}${[
     ["exclude_occupied", "Excluir imóveis ocupados"],
@@ -620,7 +629,7 @@ async function profile() {
     )
     .join(
       "",
-    )}</div><p class="small">Limites vazios não restringem a busca. Dados ausentes permanecem pendentes.</p></details><div class="form-actions"><p id="profile-save-status" role="status" aria-live="polite">Filtros salvos automaticamente na lista local. Clique em Pesquisar nas fontes para atualizar a coleta.</p><button>Salvar agora</button></div></form>`;
+    )}</div><p class="small">Limites vazios não restringem a busca; zero aceita apenas custo zero confirmado. Condomínio não inclui IPTU. Sem custo ou periodicidade confirmados, o anúncio fica pendente e pode aparecer: marque Excluir requisitos desconhecidos para mostrar apenas correspondências confirmadas.</p></details><div class="form-actions"><p id="profile-save-status" role="status" aria-live="polite">Filtros salvos automaticamente na lista local. Clique em Pesquisar nas fontes para atualizar a coleta.</p><button>Salvar agora</button></div></form>`;
 }
 async function budget() {
   return (
@@ -1188,12 +1197,14 @@ function bind(root = main) {
       savedRevision = 0,
       saving = null;
     const status = profileForm.querySelector("#profile-save-status");
+    const originalBounds = structuredClone(state.profile.search_bounds || []);
+    const profileEpoch = accountEpoch;
     const save = async () => {
       clearTimeout(timer);
       if (cancelled) return false;
       if (saving) {
         await saving;
-        if (savedRevision === revision) return true;
+        return save();
       }
       if (savedRevision === revision) return true;
       if (!profileForm.checkValidity()) {
@@ -1212,6 +1223,7 @@ function bind(root = main) {
               name: f.get("name"),
               cities: f
                 .get("cities")
+                .replace(/(São\s+Paulo|Sao\s+Paulo)\s*,\s*SP\b/giu, "$1 - SP")
                 .split(",")
                 .map((s) => s.trim())
                 .filter(Boolean),
@@ -1225,9 +1237,7 @@ function bind(root = main) {
                 .split(",")
                 .map((s) => s.trim())
                 .filter(Boolean),
-              search_bounds: f.has("use_bounds")
-                ? state.profile.search_bounds
-                : [],
+              search_bounds: f.has("use_bounds") ? originalBounds : [],
               exclude_occupied: f.has("exclude_occupied"),
               require_elevator: f.has("require_elevator"),
               exclude_unknown_required: f.has("exclude_unknown_required"),
@@ -1248,6 +1258,7 @@ function bind(root = main) {
             "bedrooms_min",
             "parking_min",
             "metro_max",
+            "condo_max",
             "monthly_max",
             "alert_drop_percent",
           ])
@@ -1265,7 +1276,12 @@ function bind(root = main) {
             throw Error(
               "Área mínima maior que a máxima. Aumente a máxima ou deixe-a vazia",
             );
-          state.profile = await api("/profile", { method: "PUT", body: p });
+          const updatedProfile = await api("/profile", {
+            method: "PUT",
+            body: p,
+          });
+          if (cancelled || profileEpoch !== accountEpoch) return;
+          state.profile = updatedProfile;
 
           const criteria = profileForm.querySelector("[data-active-criteria]");
           if (criteria) criteria.textContent = activeCriteria(state.profile);

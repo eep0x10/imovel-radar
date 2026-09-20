@@ -180,7 +180,7 @@ def test_missing_titles_derived_only_from_known_facts(changes, expected):
     assert result['records'][0]['title'] == expected
 
 
-@pytest.mark.parametrize('alias', ['iptuPlusCondominium', 'complexFee'])
+@pytest.mark.parametrize('alias', ['iptuPlusCondominium'])
 def test_legacy_combined_cost_has_unknown_period_even_if_period_supplied(alias):
     for period in (None, 'monthly'):
         result = parse([{**BASE, alias: 450, 'combined_cost_period': period}])
@@ -197,3 +197,10 @@ def test_canonical_combined_monthly_cost_retains_explicit_period(period, expecte
     assert not result['errors']
     assert result['records'][0]['combined_cost_period'] == expected
     assert result['records'][0]['combined_monthly_cost'] == 450
+
+
+def test_loft_complex_fee_is_condominium_not_combined_cost():
+    result = parse([{**BASE, 'complexFee': 450}])
+    assert not result['errors']
+    assert result['records'][0]['condo_fee'] == 450
+    assert result['records'][0]['combined_monthly_cost'] is None

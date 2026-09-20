@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 import math
 import statistics
 import unicodedata
+from .locations import canonical_city
 
-SCORE_VERSION = "1.1.0"
+SCORE_VERSION = "1.2.0"
 
 
 def _number(value):
@@ -70,7 +71,7 @@ def evaluate_property(property, peers, profile, now=None):
     if now is None:
         raise ValueError("Data de avaliação inválida")
     reasons, pending, missing, quality_factors, fit_factors = [], [], [], [], []
-    eligible = property.get("status") != "unavailable"
+    eligible = property.get("status") not in ("unavailable", "inactive", "sold")
     if not eligible:
         reasons.append("Anúncio indisponível")
     checks = [
@@ -83,6 +84,7 @@ def evaluate_property(property, peers, profile, now=None):
         ("floor", "floor_min", "Andar mínimo", "min"),
         ("parking", "parking_min", "Vagas mínimas", "min"),
         ("metro_minutes", "metro_max", "Distância ao metrô", "max"),
+        ("condo_fee", "condo_max", "Condomínio máximo", "max"),
         ("monthly_cost", "monthly_max", "Despesas mensais máximas", "max"),
     ]
     outcomes = {}
@@ -134,11 +136,29 @@ def evaluate_property(property, peers, profile, now=None):
                 outcomes[field] = [0]
             else:
                 known_requirements += 1
-                passed = _text(property[field]) in {_text(v) for v in choices}
+                location_key = (lambda value: _text(canonical_city(value))) if field == "city" else _text
+                passed = location_key(property[field]) in {location_key(v) for v in choices}
                 outcomes[field] = [100 if passed else 0]
                 if not passed:
                     eligible = False
                     reasons.append(f"Não atende: {label}")
+    bounds = profile.get("search_bounds") or []
+    if bounds:
+        # Source queries limit collection, but existing records and saved alerts
+        # must also obey the current snapshot's geographic regions (union).
+        applicable_requirements += 1
+        latitude, longitude = _number(property.get("latitude")), _number(property.get("longitude"))
+        if latitude is None or longitude is None or not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+            pending.append("Região delimitada no mapa")
+            missing.append("coordinates")
+            outcomes["search_bounds"] = [0]
+        else:
+            known_requirements += 1
+            passed = any(b["south"] <= latitude <= b["north"] and b["west"] <= longitude <= b["east"] for b in bounds)
+            outcomes["search_bounds"] = [100 if passed else 0]
+            if not passed:
+                eligible = False
+                reasons.append("Não atende: região delimitada no mapa")
     if profile.get("require_elevator"):
         applicable_requirements += 1
         outcomes["elevator"] = [100 if property.get("elevator") is True else 0]
@@ -200,7 +220,7 @@ def evaluate_property(property, peers, profile, now=None):
     conservative_quality = sum(f["value"] * f["weight"] for f in known) / 100
     reasons.append(f"Qualidade observada em {coverage}% dos critérios; nota exige cobertura mínima de 70%; dados ausentes não são aprovação")
     weights = profile.get("weights") or {"price": 40, "location": 35, "quality": 25}
-    for category, label, fields in (("price", "Orçamento", ["price", "monthly_cost"]), ("location", "Localização", ["city", "neighborhood", "metro_minutes", "metro_station"]), ("quality", "Características e qualidade", ["area", "bedrooms", "bathrooms", "floor", "parking", "elevator", "occupied"])):
+    for category, label, fields in (("price", "Orçamento", ["price", "condo_fee", "monthly_cost"]), ("location", "Localização", ["city", "neighborhood", "search_bounds", "metro_minutes", "metro_station"]), ("quality", "Características e qualidade", ["area", "bedrooms", "bathrooms", "floor", "parking", "elevator", "occupied"])):
         scores = [statistics.mean(outcomes[f]) for f in fields if f in outcomes]
         if category == "quality":
             scores.append(conservative_quality)

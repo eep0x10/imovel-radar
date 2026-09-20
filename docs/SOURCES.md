@@ -8,7 +8,7 @@ Uma busca válida sem resultados pode concluir com zero. Falha de transporte ou 
 
 Datas de coleta são instantes reais. Planilha histórica sem data permanece sem data. Comparativos não devem tratar a data de importação como data de verificação do imóvel.
 
-IPTU e condomínio são campos separados quando disponíveis. Valores combinados sem periodicidade confirmada não são aprovados no filtro mensal. Tempos de caminhada só são publicados quando retornados por fonte de rotas; distância em linha reta não equivale a caminhada.
+IPTU e condomínio são campos separados quando disponíveis. O adaptador do QuintoAndar reconhece `iptuPlusCondominium` da busca de venda como soma mensal; no detalhe, `condoPrice` é condomínio e IPTU exige período explícito ou apresentação em 12 parcelas. `complexFee` da Loft é somente condomínio. Importações genéricas com valores combinados sem periodicidade confirmada continuam pendentes. Custos desconhecidos podem aparecer se a opção **Excluir requisitos desconhecidos** estiver desmarcada. Tempos de caminhada só são publicados quando retornados por fonte de rotas; distância em linha reta não equivale a caminhada.
 
 A integração é independente e sujeita a mudanças dos portais. Coleta ativa somente de QuintoAndar e Loft; OLX e VivaReal foram removidos a pedido do usuário. Dados históricos importados são preservados.
 
