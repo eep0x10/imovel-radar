@@ -161,3 +161,29 @@ def test_malformed_route_does_not_invent_minutes(monkeypatch):
     mock_google(monkeypatch, response)
     r = loc.enrich_records([BASE], {})
     assert r["records"][0]["metro_minutes"] is None and r["warnings"]
+
+
+def test_billing_diagnosis_cooldown_and_key_change(monkeypatch):
+    calls = mock_google(monkeypatch, lambda request: httpx.Response(200, json={"status": "REQUEST_DENIED", "error_message": "You must enable Billing test-only-fake-key"}))
+    first = loc.enrich_records([BASE], {})
+    assert len(calls) == 1
+    status = loc.provider_status()
+    assert status["status"] == "billing_required" and status["retry_after"]
+    assert "test-only-fake-key" not in json.dumps(status)
+    assert "test-only-fake-key" not in json.dumps(first)
+    second = loc.enrich_records([BASE], {})
+    assert second["requests"] == 0 and len(calls) == 1
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "different-test-key")
+    assert loc.provider_status()["status"] == "ready"
+    loc.enrich_records([BASE], {})
+    assert len(calls) == 2
+
+
+def test_cooldown_still_serves_cached_routes(monkeypatch):
+    calls = mock_google(monkeypatch, ok_response)
+    loc.enrich_records([BASE], {})
+    loc._provider_record("billing_required", 3600)
+    result = loc.enrich_records([BASE, {**BASE, "address": "Rua Nova, 200"}], {})
+    assert result["cache_hits"] == 1 and result["requests"] == 0
+    assert len(calls) == 3
+    assert result["records"][0]["metro_minutes"] == 10.25

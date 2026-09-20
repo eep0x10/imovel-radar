@@ -25,6 +25,45 @@ CACHE_DAYS = 30
 STOP_STATUSES = {"REQUEST_DENIED", "OVER_QUERY_LIMIT", "OVER_DAILY_LIMIT"}
 
 
+PROVIDER_MESSAGES = {
+    "billing_required": "Google Maps: habilite o faturamento do projeto no Google Cloud para consultar rotas a pé.",
+    "access_denied": "Google Maps: acesso recusado; confira as APIs habilitadas e as restrições da chave no Google Cloud.",
+    "quota_exceeded": "Google Maps: limite de consultas atingido; as distâncias pendentes serão tentadas depois.",
+    "unavailable": "Google Maps: serviço temporariamente indisponível.",
+    "ready": "Google Maps configurado. Rotas dependem de endereço preciso e disponibilidade do serviço.",
+    "not_configured": "Google Maps não configurado; tempos de caminhada permanecem desconhecidos.",
+}
+
+
+def _provider_key():
+    key = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    return "maps-status:" + hashlib.sha256(key.encode()).hexdigest()
+
+
+def _provider_record(state, cooldown=0):
+    now = datetime.now(timezone.utc)
+    entry = {"status": state, "checked_at": now.isoformat(),
+             "retry_after": (now + timedelta(seconds=cooldown)).isoformat() if cooldown else None}
+    with storage.transaction() as conn:
+        conn.execute("INSERT INTO runtime(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (_provider_key(), storage.dumps(entry)))
+
+
+def provider_status():
+    configured = bool(os.getenv("GOOGLE_MAPS_API_KEY"))
+    entry = {"status": "ready" if configured else "not_configured", "checked_at": None, "retry_after": None}
+    if configured:
+        try:
+            with closing(storage.connect()) as conn:
+                row = conn.execute("SELECT value FROM runtime WHERE key=?", (_provider_key(),)).fetchone()
+            if row:
+                stored = json.loads(row[0])
+                if stored.get("status") in PROVIDER_MESSAGES:
+                    entry.update({key: stored.get(key) for key in entry})
+        except (ValueError, TypeError):
+            pass
+    return {"configured": configured, **entry, "message": PROVIDER_MESSAGES[entry["status"]]}
+
+
 class ProviderFailure(Exception):
     def __init__(self, code: str, stop: bool = False):
         self.code = code
@@ -118,7 +157,9 @@ def _cache_write(key, entry):
 def _request(client, endpoint, params, api_key):
     try:
         response = client.get(BASE_URL + endpoint, params={**params, "key": api_key, "language": "pt-BR"})
-        if response.status_code in (401, 403, 429):
+        if response.status_code == 429:
+            raise ProviderFailure("OVER_QUERY_LIMIT", stop=True)
+        if response.status_code in (401, 403):
             raise ProviderFailure("PROVIDER_ACCESS_LIMIT", stop=True)
         response.raise_for_status()
         body = response.json()
@@ -129,6 +170,10 @@ def _request(client, endpoint, params, api_key):
         raise ProviderFailure("INVALID_RESPONSE")
     status = body.get("status")
     if status in STOP_STATUSES:
+        # Classify only; raw provider messages may contain private request data.
+        detail = str(body.get("error_message", "")).casefold()
+        if status == "REQUEST_DENIED" and "billing" in detail:
+            raise ProviderFailure("BILLING_REQUIRED", stop=True)
         raise ProviderFailure(str(status), stop=True)
     if status == "ZERO_RESULTS":
         return None
@@ -224,6 +269,11 @@ def enrich_records(records, profile):
     budget = max(1, _bounded_env("IMOVEL_GEOCODE_TIME_BUDGET", 60, 300))
     deadline, now, counter = time.monotonic() + budget, datetime.now(timezone.utc), [0]
     warnings = set()
+    status = provider_status()
+    try:
+        suspended = bool(status["retry_after"] and datetime.fromisoformat(status["retry_after"]) > now)
+    except (ValueError, TypeError):
+        suspended = False
     with _redacted_http_logging(api_key), httpx.Client(timeout=httpx.Timeout(8, connect=4), follow_redirects=False, trust_env=False) as client:
         for record in output:
             if _number(record.get("metro_minutes")) is not None and record.get("metro_station"):
@@ -242,12 +292,16 @@ def enrich_records(records, profile):
                 result["cache_hits"] += 1
                 result["enriched"] += 1
                 continue
+            if suspended:
+                warnings.add(status["message"])
+                continue
             if result["lookups"] >= limit:
                 warnings.add(f"Metrô: limite de {limit} consultas de imóveis atingido nesta coleta; demais distâncias permanecem pendentes.")
                 continue
             result["lookups"] += 1
             try:
                 entry = _lookup(client, record, location, api_key, now, counter, deadline)
+                _provider_record("ready")
                 _apply(record, entry)
                 result["enriched"] += 1
                 try:
@@ -255,13 +309,21 @@ def enrich_records(records, profile):
                 except Exception:
                     warnings.add("Metrô: resultado obtido, mas não foi possível armazenar o cache.")
             except ProviderFailure as exc:
+                state = {"BILLING_REQUIRED": "billing_required", "REQUEST_DENIED": "access_denied",
+                         "PROVIDER_ACCESS_LIMIT": "access_denied", "OVER_QUERY_LIMIT": "quota_exceeded",
+                         "OVER_DAILY_LIMIT": "quota_exceeded"}.get(exc.code)
+                if state:
+                    _provider_record(state, cooldown=3600)
+                    status = provider_status()
+                    suspended = True
+                    warnings.add(PROVIDER_MESSAGES[state])
                 warnings.add({"NO_GEOCODE": "Metrô: endereço não localizado; distância permanece pendente.",
                               "IMPRECISE_ADDRESS": "Metrô: endereço impreciso; não foi estimado trajeto a partir do centro do bairro ou rua.",
                               "NO_STATION": "Metrô: nenhuma estação encontrada para alguns anúncios.",
                               "NO_WALKING_ROUTE": "Metrô: trajeto a pé não disponível para alguns anúncios.",
                               "TIME_BUDGET": "Metrô: tempo máximo de enriquecimento atingido; demais distâncias permanecem pendentes."
                               }.get(exc.code, "Metrô: serviço indisponível ou acesso limitado; distâncias desconhecidas foram preservadas."))
-                if exc.stop:
+                if exc.stop and not suspended:
                     break
             except (KeyError, TypeError, ValueError, IndexError):
                 warnings.add("Metrô: resposta incompleta do serviço; distância permanece pendente.")

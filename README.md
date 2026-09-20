@@ -25,7 +25,7 @@ Organize sua busca pela casa própria. Acompanhe anúncios, compare preços e cu
 
 | Encontre | Entenda | Organize |
 | :--- | :--- | :--- |
-| Coleta paginada de QuintoAndar e Loft; feeds e importações CSV, JSON, XLSX e XML VRSync. | Preço/m², comparáveis recentes, histórico de preços, custo mensal e simulação SAC/Price. | Conta privada, favoritos, comparação, visitas, checklist, avaliações e notas. |
+| Coleta paginada de QuintoAndar, Loft, VivaReal e OLX; feeds e importações CSV, JSON, XLSX e XML VRSync. | Preço/m², comparáveis recentes, histórico de preços, custo mensal e simulação SAC/Price. | Conta privada, favoritos, comparação, visitas, checklist, avaliações e notas. |
 
 ```mermaid
 flowchart LR
@@ -60,7 +60,7 @@ python3 -m venv .venv
 </details>
 
 1. Configure orçamento, metragem, quartos, banheiros, vaga, andar e preferência de metrô.
-2. Em **Fontes e atualização**, ative QuintoAndar e Loft e execute a primeira coleta.
+2. Em **Fontes e atualização**, ative QuintoAndar, Loft, VivaReal e OLX e execute a primeira coleta.
 3. Consulte anúncios no radar. Use **Aplicar minha busca** para restringir aos critérios e examine pendências.
 4. Compare imóveis, salve favoritos e acompanhe visitas e alterações.
 
@@ -74,7 +74,8 @@ O processo inicia API e worker. Por padrão, a rotina diária roda às 7h de `Am
 | Loft | Coleta da resposta pública utilizada pela busca | Mesmos cuidados; impostos sem periodicidade comprovada ficam desconhecidos |
 | Feed próprio | URL JSON, CSV ou XML VRSync | Validação de rede, tamanho, formato e autorização da fonte |
 | Planilhas | Prévia e importação de XLSX, CSV e JSON | Sem atualização automática do arquivo original |
-| ZAP, VivaReal, OLX e Imovelweb | Catálogo de fontes futuras | Ainda sem coletor integrado |
+| VivaReal e OLX | Leitura de dados estruturados das páginas públicas | Amostra paginada; bairros e coordenadas podem estar ausentes; bloqueios são visíveis |
+| ZAP e Imovelweb | Acesso HTTP bloqueado na verificação atual | Importação de arquivo ou feed disponível; sem coletor ativo |
 
 Os coletores não representam parceria ou API oficial. A cobertura informada corresponde às páginas efetivamente lidas. Nenhuma ausência em uma coleta parcial marca um anúncio como vendido. Veja [contrato das fontes](docs/SOURCES.md).
 

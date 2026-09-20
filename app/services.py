@@ -216,10 +216,14 @@ def refresh_source(user_id, source_id):
             from .portal_collectors import collect_portal
             with closing(storage.connect()) as conn:
                 search_profile = profile_for(conn, user_id)
-            portal = {"QuintoAndar": "quintoandar", "Loft": "loft"}.get(source["name"])
+            portal = {"QuintoAndar": "quintoandar", "Loft": "loft", "VivaReal": "vivareal", "OLX": "olx"}.get(source["name"])
             if not portal:
                 raise ValueError("Coletor não disponível para esta fonte")
-            parsed = collect_portal(portal, search_profile)
+            if portal in {"vivareal", "olx"}:
+                from .grupo_collectors import collect_grupo_portal
+                parsed = collect_grupo_portal(portal, search_profile)
+            else:
+                parsed = collect_portal(portal, search_profile)
         else:
             parsed = fetch_feed(source["url"])
         if parsed.get("errors"):

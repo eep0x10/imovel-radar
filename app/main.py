@@ -310,15 +310,17 @@ def sources(user: User):
         item.pop("user_id", None)
         item["enabled"] = bool(item["enabled"])
         item["authorized"] = bool(item["authorized"])
-    catalog = [{"name": name, "url": url, "portal": {"QuintoAndar": "quintoandar", "Loft": "loft"}.get(name),
-                "supported": name in {"QuintoAndar", "Loft"},
-                "status": "available" if name in {"QuintoAndar", "Loft"} else "pending_access"} for name, url in PORTALS]
+    enabled_portals = {"QuintoAndar": "quintoandar", "Loft": "loft", "VivaReal": "vivareal", "OLX": "olx"}
+    catalog = [{"name": name, "url": url, "portal": enabled_portals.get(name),
+                "supported": name in enabled_portals,
+                "status": "available" if name in enabled_portals else "access_blocked",
+                "message": None if name in enabled_portals else "O portal bloqueou a coleta HTTP na última verificação. Importação de arquivo continua disponível."} for name, url in PORTALS]
     return {"items": items, "catalog": catalog, "schedule": schedule}
 
 
 @app.post("/api/sources/portal", status_code=201)
 def add_portal(payload: PortalCreate, user: User):
-    name, url = {"quintoandar": PORTALS[0], "loft": PORTALS[1]}[payload.portal]
+    name, url = {"quintoandar": PORTALS[0], "loft": PORTALS[1], "vivareal": PORTALS[3], "olx": PORTALS[4]}[payload.portal]
     with storage.transaction() as conn:
         conn.execute("INSERT INTO sources(user_id,name,kind,url,enabled,authorized,status,created_at) VALUES(?,?,'portal',?,1,1,'pending',?) ON CONFLICT(user_id,name,kind) DO UPDATE SET enabled=1,authorized=1", (user["id"], name, url, storage.now_iso()))
         sid = conn.execute("SELECT id FROM sources WHERE user_id=? AND name=? AND kind='portal'", (user["id"], name)).fetchone()[0]
@@ -425,8 +427,9 @@ def health():
 
 @app.get("/api/status")
 def status(user: User):
+    from .location_enrichment import provider_status
     with closing(storage.connect()) as conn:
-        return {"schedule": schedule_info(conn), "legacy_import_available": os.environ.get("IMOVEL_ENABLE_LEGACY_IMPORT") == "1" and user["id"] == 1 and (storage.ROOT / "resultados_quintoandar.xlsx").is_file()}
+        return {"integrations": {"google_maps": provider_status()}, "schedule": schedule_info(conn), "legacy_import_available": os.environ.get("IMOVEL_ENABLE_LEGACY_IMPORT") == "1" and user["id"] == 1 and (storage.ROOT / "resultados_quintoandar.xlsx").is_file()}
 
 
 @app.get("/api/{unknown:path}")

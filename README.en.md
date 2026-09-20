@@ -14,7 +14,7 @@ A local home-buying workspace: collect listings, track asking prices, compare pr
 
 Python 3.11+. On Windows run `scripts/run.ps1`; on other platforms create a virtual environment, install `requirements.lock` and run `python run.py`. Open http://127.0.0.1:8766 and create an account (minimum 8-character password).
 
-Set your preferences, enable QuintoAndar and Loft in Sources, and run the first collection. The worker checks the daily schedule while the application is running. Paginated public search collection reports actual coverage and failures. Additional portals remain unconnected. JSON/CSV/VRSync feeds and spreadsheet imports are supported.
+Set your preferences, enable QuintoAndar, Loft, VivaReal and OLX in Sources, and run the first collection. The worker checks the daily schedule while the application is running. Paginated public search collection reports actual coverage and failures. ZAP and Imovelweb currently block HTTP collection and remain unconnected. JSON/CSV/VRSync feeds and spreadsheet imports are supported.
 
 ## Evidence before conclusions
 

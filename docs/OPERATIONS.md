@@ -40,3 +40,11 @@ O backup usa a API online SQLite, inclui dados confirmados no WAL e verifica `in
 Testes cobrem isolamento entre contas, auth, importação, regressões de identidade/data/histórico, segurança do fetch, comparáveis, SAC/Price, agenda, leases e backup/restauração. Interface validada separadamente em 1440px e 390px. Evidências locais em `output/qa/`, ignoradas no Git.
 
 `compose.yaml` fornece empacotamento para instalação própria com volume persistente. Não houve implantação remota nesta entrega: este repositório não tem destino de produção cadastrado. Para exposição pública, configurar HTTPS/reverse proxy, backups externos e operar a atualização. A API está documentada em `/api/docs`.
+
+## Diagnóstico Google Maps
+
+A tela Fontes mostra se o serviço de rotas está configurado e o motivo de uma recusa. `billing_required` significa que o Google exige faturamento habilitado no projeto da chave; não significa que o formato da chave esteja errado. Habilitar faturamento é uma ação do titular no Google Cloud, sujeita à cobrança do provedor.
+
+Recusas de acesso, faturamento e quota suspendem novas consultas por uma hora. Rotas já armazenadas e ainda válidas continuam disponíveis. Uma chave nova tem diagnóstico independente. A aplicação só guarda códigos e mensagens próprias; nunca respostas de erro com credenciais.
+
+Referência: [Google Geocoding: uso e faturamento](https://developers.google.com/maps/documentation/geocoding/usage-and-billing).
