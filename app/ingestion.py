@@ -75,6 +75,7 @@ def _normalize(raw):
     if not isinstance(raw, dict):
         raise ValueError('Anúncio deve ser um objeto')
     data = {str(k).strip(): v for k, v in raw.items() if k is not None}
+    explicit_combined_cost = not _missing(data.get('combined_monthly_cost'))
     for field, aliases in ALIASES.items():
         if _missing(data.get(field)):
             for alias in aliases:
@@ -82,6 +83,10 @@ def _normalize(raw):
                     data[field] = data[alias]
                     break
     record = {key: _number(data.get(key), key) for key in NUMBERS}
+    record['combined_cost_period'] = (
+        data.get('combined_cost_period') if data.get('combined_cost_period') in ('monthly', 'unknown')
+        else 'monthly'
+    ) if explicit_combined_cost else 'unknown'
     for field in ('price', 'area'):
         if record[field] is None or record[field] <= 0:
             raise ValueError(f'{field}: obrigatório e maior que zero')

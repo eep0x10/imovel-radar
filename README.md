@@ -39,7 +39,7 @@ O arquivo original `resultados_quintoandar.xlsx` não é sobrescrito. Sua data d
 - Identidades por origem + ID; feeds têm namespace estável. Endereço de prédio sem identificação de unidade não funde imóveis automaticamente.
 - Histórico de transições, inclusive quando o preço volta ao valor anterior. Atualizações antigas não substituem observações mais recentes.
 - Ranking v1.1: qualidade observada, aderência pessoal e oportunidade separadas. Qualidade exige cobertura mínima de 70%; oportunidade exige anúncio atual/ativo e pelo menos três comparáveis únicos e recentes. Amostras pequenas ficam com confiança baixa. Critérios e imóveis comparáveis são inspecionáveis.
-- Despesas combinadas do legado preservadas sem inventar a divisão condomínio/IPTU. Simulação SAC e Price com taxa efetiva anual, amortização mensal, custos iniciais e reserva.
+- Despesas combinadas do legado preservadas sem inventar a divisão condomínio/IPTU nem sua periodicidade. Enquanto o período não for confirmado, o total não aprova o filtro de custo mensal. Simulação SAC e Price com taxa efetiva anual, amortização mensal, custos iniciais e reserva.
 - Favoritos, etapas, visitas, checklist e notas persistidos. Avaliações do usuário não são apagadas por atualização do feed.
 - Alertas dentro da aplicação para novos imóveis elegíveis e queda de preço acima do limiar pessoal. Nenhuma mensagem externa é enviada.
 - Exportação JSON da conta sem hash de senha ou token, backup online e restauração em cópia nova.

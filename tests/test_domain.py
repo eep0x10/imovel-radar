@@ -99,6 +99,19 @@ def test_legacy_combined_cost_does_not_double_count_and_tax_period_matters():
     assert not evaluate_property(home(combined_monthly_cost=700), [], {"monthly_max": 600}, NOW)["eligible"]
 
 
+def test_combined_cost_unknown_period_is_pending_not_monthly_approval():
+    property = home(combined_monthly_cost=500, combined_cost_period="unknown", condo_fee=400, property_tax=1200, tax_period="annual")
+    assert monthly_cost(property) is None
+    result = evaluate_property(property, [], {"monthly_max": 600}, NOW)
+    assert "Despesas mensais máximas" in result["pending_requirements"]
+    assert "monthly_cost" in result["missing"]
+    assert result["fit_coverage"] == 0
+    assert next(f for f in result["fit_factors"] if f["label"] == "Orçamento")["score"] == 0
+    assert not evaluate_property(property, [], {"monthly_max": 600, "exclude_unknown_required": True}, NOW)["eligible"]
+    assert monthly_cost({"combined_monthly_cost": 500}) == 500
+    assert monthly_cost({"combined_monthly_cost": 500, "combined_cost_period": "monthly"}) == 500
+
+
 def test_small_sample_and_duplicates_never_manufacture_discount():
     candidates = peers(2)
     result = evaluate_property(home(), candidates * 4 + [home()], {}, NOW)

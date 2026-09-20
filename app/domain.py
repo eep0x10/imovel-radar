@@ -33,6 +33,8 @@ def monthly_cost(property):
     """Condo + tax only; never split or double count a legacy combined amount."""
     combined = _number(property.get("combined_monthly_cost"))
     if combined is not None and combined >= 0:
+        if property.get("combined_cost_period") == "unknown":
+            return None
         return combined
     condo, tax = _number(property.get("condo_fee")), _number(property.get("property_tax"))
     period = property.get("tax_period")
