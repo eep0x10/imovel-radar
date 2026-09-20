@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Imóvel Radar · Protótipo v1</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 15L16 4L28 15V29H4Z' fill='%23244f42'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="demo">PROTÓTIPO V1 <span>Dados fictícios · alterações duram apenas nesta sessão · nenhuma coleta ativa</span></div>
+<div class="shell">
+<aside class="sidebar"><a class="brand" href="#radar" aria-label="Imóvel Radar, início"><span class="brand-icon">⌂</span>imóvel<span>radar</span></a><p class="section-label">SEU PRÓXIMO ENDEREÇO</p><nav aria-label="Navegação principal" id="nav"></nav><div class="sidebar-foot"><span class="avatar">EU</span><div><b>Minha casa em SP</b><small>Perfil de demonstração</small></div></div></aside>
+<div class="workspace"><header class="topbar"><span>São Paulo <span class="muted">/</span> Minha primeira casa</span><button class="text-button" id="profile-shortcut">Ajustar minha busca ↗</button></header><main id="main" tabindex="-1"></main><footer>Dados e fotos ilustrativos. Confira informações, disponibilidade e documentação na fonte antes de decidir.</footer></div>
+</div>
+<dialog id="detail" aria-label="Dossiê do imóvel"><div id="detail-content"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body></html>

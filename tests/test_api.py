@@ -1,0 +1,184 @@
+"""HTTP integration invariants against an isolated database and real lifespan."""
+import json
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app import ingestion
+
+
+PASSWORD = "test-only-strong-password"
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("IMOVEL_DB_PATH", str(tmp_path / "test.sqlite3"))
+    monkeypatch.delenv("IMOVEL_ENABLE_LEGACY_IMPORT", raising=False)
+    with TestClient(app) as session:
+        yield session
+
+
+def account(client, name="alice"):
+    response = client.post("/api/auth/register", json={"email": f"{name}@example.com", "name": name, "password": PASSWORD})
+    assert response.status_code == 201, response.text
+    return {"Authorization": "Bearer " + response.json()["token"]}
+
+
+def listing(**changes):
+    return {**{"source": "Test source", "external_id": "apt-1", "url": "https://example.com/apt-1", "title": "Apartamento de teste", "price": 300000, "area": 50, "city": "São Paulo", "neighborhood": "Mooca", "property_type": "apartment", "bedrooms": 2, "parking": 0, "metro_minutes": 10, "condo_fee": 400, "property_tax": 1200, "tax_period": "annual", "status": "active", "observed_at": "2026-09-18T12:00:00Z"}, **changes}
+
+
+def preview(client, headers, records):
+    response = client.post("/api/import/preview", headers=headers, files={"file": ("listings.json", json.dumps(records).encode(), "application/json")})
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def commit(client, headers, records):
+    item = preview(client, headers, records)
+    response = client.post("/api/import/commit", headers=headers, json={"preview_id": item["preview_id"]})
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_auth_lifecycle_and_private_endpoints(client):
+    assert client.get("/api/health").json()["status"] == "ok"
+    for route in ("/api/properties", "/api/profile", "/api/export", "/api/alerts", "/api/sources", "/api/import/template.csv", "/api/status"):
+        assert client.get(route).status_code == 401
+    assert client.post("/api/auth/register", json={"email": "a@example.com", "name": "A", "password": "short"}).status_code == 422
+    headers = account(client)
+    assert client.get("/api/auth/me", headers=headers).json()["email"] == "alice@example.com"
+    assert client.post("/api/auth/login", json={"email": "alice@example.com", "password": "wrong"}).status_code == 401
+    login = client.post("/api/auth/login", json={"email": "ALICE@example.com", "password": PASSWORD})
+    assert login.status_code == 200
+    fresh = {"Authorization": "Bearer " + login.json()["token"]}
+    assert client.post("/api/auth/logout", headers=headers).status_code == 200
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
+    assert client.get("/api/auth/me", headers=fresh).status_code == 200
+
+
+def test_two_accounts_isolate_properties_tracking_alerts_and_export(client):
+    alice, bob = account(client), account(client, "bob")
+    a = client.post("/api/properties", headers=alice, json=listing()).json()
+    b = client.post("/api/properties", headers=bob, json=listing(title="Bob private home")).json()
+    assert a["id"] != b["id"]
+    assert client.get("/api/properties", headers=bob).json()["total"] == 1
+    assert client.get(f"/api/properties/{a['id']}", headers=bob).status_code == 404
+    assert client.patch(f"/api/properties/{a['id']}/tracking", headers=bob, json={"saved": True}).status_code == 404
+    tracking = {"saved": True, "stage": "visit", "notes": "Private negotiation notes", "visit_at": "2026-09-25T14:00:00-03:00", "checklist": {"documentation": True}}
+    response = client.patch(f"/api/properties/{a['id']}/tracking", headers=alice, json=tracking)
+    assert response.status_code == 200
+    detail = client.get(f"/api/properties/{a['id']}", headers=alice).json()
+    for key, value in tracking.items():
+        assert detail[key] == value
+    assert client.get("/api/properties?saved=true", headers=alice).json()["total"] == 1
+    assert client.get("/api/properties?saved=true", headers=bob).json()["total"] == 0
+    alerts = client.get("/api/alerts", headers=alice).json()
+    assert alerts["unread"] == 1
+    aid = alerts["items"][0]["id"]
+    assert client.patch(f"/api/alerts/{aid}", headers=bob, json={"read": True}).status_code == 404
+    assert client.patch(f"/api/alerts/{aid}", headers=alice, json={"read": True}).status_code == 200
+    assert client.get("/api/alerts", headers=alice).json()["unread"] == 0
+    exported = client.get("/api/export", headers=bob)
+    assert exported.status_code == 200
+    assert exported.json()["user"]["email"] == "bob@example.com"
+    assert len(exported.json()["properties"]) == 1
+    assert "Private negotiation" not in exported.text
+    assert "alice@example.com" not in exported.text
+    assert "password_hash" not in exported.text and "token_hash" not in exported.text
+
+
+def test_preview_private_idempotent_and_reimport_does_not_duplicate(client):
+    alice, bob = account(client), account(client, "bob")
+    item = preview(client, alice, [listing()])
+    assert item["valid"] == 1 and item["errors"] == []
+    assert client.get("/api/properties", headers=alice).json()["total"] == 0
+    body = {"preview_id": item["preview_id"]}
+    assert client.post("/api/import/commit", headers=bob, json=body).status_code == 404
+    first = client.post("/api/import/commit", headers=alice, json=body)
+    second = client.post("/api/import/commit", headers=alice, json=body)
+    assert first.json() == second.json()
+    assert first.json()["created"] == 1
+    repeat = commit(client, alice, [listing()])
+    assert repeat["created"] == repeat["updated"] == 0
+    assert repeat["unchanged"] == 1
+    properties = client.get("/api/properties", headers=alice).json()
+    assert properties["total"] == 1
+    pid = properties["items"][0]["id"]
+    assert len(client.get(f"/api/properties/{pid}", headers=alice).json()["history"]) == 1
+    assert client.get("/api/alerts", headers=alice).json()["unread"] == 1
+
+
+def test_import_with_any_invalid_row_is_atomic(client):
+    headers = account(client)
+    item = preview(client, headers, [listing(), listing(external_id="bad", price=-1)])
+    assert item["errors"]
+    assert client.post("/api/import/commit", headers=headers, json={"preview_id": item["preview_id"]}).status_code == 422
+    assert client.get("/api/properties", headers=headers).json()["total"] == 0
+
+
+def test_price_drop_history_alert_and_older_observation_cannot_revert(client):
+    headers = account(client)
+    commit(client, headers, [listing()])
+    drop = listing(price=270000, observed_at="2026-09-19T12:00:00Z")
+    assert commit(client, headers, [drop])["updated"] == 1
+    assert commit(client, headers, [drop])["unchanged"] == 1
+    assert commit(client, headers, [listing(price=320000)])["unchanged"] == 1
+    assert commit(client, headers, [listing(price=320000, observed_at=None)])["unchanged"] == 1
+    properties = client.get("/api/properties?drops=true", headers=headers).json()
+    assert properties["total"] == 1
+    item = properties["items"][0]
+    assert item["price"] == 270000 and item["price_change"] == -30000
+    detail = client.get(f"/api/properties/{item['id']}", headers=headers).json()
+    assert [h["price"] for h in detail["history"]] == [300000, 270000]
+    assert len([a for a in detail["alerts"] if a["kind"] == "price_drop"]) == 1
+
+
+def test_profile_customization_isolated_and_budget_validated(client):
+    alice, bob = account(client), account(client, "bob")
+    client.post("/api/properties", headers=alice, json=listing())
+    profile = client.get("/api/profile", headers=alice).json()
+    profile.update(budget_max=200000, cities=[], neighborhoods=[], weights={"price": 90, "location": 5, "quality": 5})
+    assert client.put("/api/profile", headers=alice, json=profile).json() == profile
+    assert client.get("/api/profile", headers=bob).json()["budget_max"] == 330000
+    assert client.get("/api/properties?apply_profile=true", headers=alice).json()["total"] == 0
+    assert client.put("/api/profile", headers=alice, json={**profile, "area_min": 100, "area_max": 50}).status_code == 422
+    budget = {"price": 300000, "down_payment": 60000, "annual_rate": 0, "months": 240, "model": "sac", "monthly_costs": 500}
+    result = client.post("/api/budget", headers=alice, json=budget)
+    assert result.status_code == 200
+    assert result.json()["first_month_total"] == 1500
+    assert result.json()["schedule"][-1]["balance"] == 0
+    assert client.post("/api/budget", headers=alice, json={**budget, "down_payment": 400000}).status_code == 422
+
+
+def test_feed_refresh_failure_preserves_snapshot_and_last_success(client, monkeypatch):
+    alice, bob = account(client), account(client, "bob")
+    source = {"name": "Authorized test feed", "url": "https://example.com/listings.json", "authorized": True}
+    sid = client.post("/api/sources", headers=alice, json=source).json()["id"]
+    assert client.post(f"/api/sources/{sid}/refresh", headers=bob).status_code == 404
+    assert client.patch(f"/api/sources/{sid}", headers=bob, json={"enabled": False}).status_code == 404
+    parsed = ingestion.parse_upload(json.dumps([listing()]).encode(), "fixture.json")
+    monkeypatch.setattr(ingestion, "fetch_feed", lambda url: parsed)
+    first = client.post(f"/api/sources/{sid}/refresh", headers=alice)
+    assert first.status_code == 200, first.text
+    assert first.json()["created"] == 1
+    assert client.post(f"/api/sources/{sid}/refresh", headers=alice).json()["unchanged"] == 1
+    before = client.get("/api/properties", headers=alice).json()["items"]
+    healthy = next(s for s in client.get("/api/sources", headers=alice).json()["items"] if s["id"] == sid)
+    assert healthy["status"] == "healthy" and healthy["last_success"]
+    def failed(url):
+        raise RuntimeError("upstream failed with private diagnostic")
+    monkeypatch.setattr(ingestion, "fetch_feed", failed)
+    failure = client.post(f"/api/sources/{sid}/refresh", headers=alice)
+    assert failure.status_code in (422, 502)
+    assert "private diagnostic" not in failure.text
+    after = client.get("/api/properties", headers=alice).json()["items"]
+    assert after == before
+    unhealthy = next(s for s in client.get("/api/sources", headers=alice).json()["items"] if s["id"] == sid)
+    assert unhealthy["status"] == "error"
+    assert unhealthy["last_success"] == healthy["last_success"]
+    assert unhealthy["last_attempt"] >= healthy["last_attempt"]
+    monkeypatch.setattr(ingestion, "fetch_feed", lambda url: {"records": [], "errors": [], "warnings": []})
+    assert client.post(f"/api/sources/{sid}/refresh", headers=alice).status_code in (422, 502)
+    assert client.get("/api/properties", headers=alice).json()["items"] == before
