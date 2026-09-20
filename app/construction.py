@@ -1,21 +1,21 @@
-"""Conservative construction-stage classification; missing evidence stays unknown."""
+"""Two purchase phases; ready is a user-defined default, not source confirmation."""
 import re
 import unicodedata
 
 
+def normalize_phase(value):
+    return 'under_construction' if value in ('off_plan', 'under_construction') else 'ready'
+
+
 def construction_status(record):
     explicit = record.get('construction_status')
-    if explicit in ('off_plan', 'under_construction', 'ready'):
-        return explicit
-    text = unicodedata.normalize('NFKD', str(record.get('title') or '').lower())
-    text = ''.join(c for c in text if not unicodedata.combining(c))
-    # Do not interpret negated promotional phrases as evidence.
-    if re.search(r'\b(nao|sem)\b', text):
-        return 'unknown'
-    if re.search(r'\bna planta\b', text):
-        return 'off_plan'
-    if re.search(r'\bem (construcao|obras)\b', text):
+    if explicit in ('off_plan', 'under_construction'):
         return 'under_construction'
-    if re.search(r'\bpronto para morar\b', text):
+    if explicit == 'ready':
         return 'ready'
-    return 'unknown'
+    text = ' '.join(str(record.get(key) or '') for key in ('title', 'description'))
+    text = ''.join(c for c in unicodedata.normalize('NFKD', text.lower()) if not unicodedata.combining(c))
+    text = re.sub(r'\b(?:nao (?:esta |e )?|sem )(?:na planta|em construcao|em obras)\b', '', text)
+    if re.search(r'\b(?:na planta|em construcao|em obras|obra em andamento)\b', text):
+        return 'under_construction'
+    return 'ready'

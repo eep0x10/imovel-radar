@@ -284,10 +284,8 @@ async function radar() {
         "",
       )}</select><select name="construction" aria-label="Fase do imóvel">${[
       ["all", "Todas as fases"],
-      ["off_plan", "Na planta"],
-      ["under_construction", "Em construção"],
-      ["ready", "Pronto para morar"],
-      ["unknown", "Fase não informada"],
+      ["under_construction", "Na planta / em construção"],
+      ["ready", "Pronto"],
     ]
       .map(
         ([id, label]) =>
@@ -295,7 +293,7 @@ async function radar() {
       )
       .join(
         "",
-      )}</select><button>Buscar</button></form><p class="small">Fase conforme informada no anúncio. Sem evidência, o imóvel fica como fase não informada.</p><label class="small"><input id="apply-profile" type="checkbox" ${state.apply ? "checked" : ""}> Aplicar minha busca</label><p class="listing-count">${r.total} imóveis · atualização: ${date(r.last_updated)}</p><div id="radar-list">${r.items.length ? r.items.map((p) => card(p, state.compare)).join("") : `<div class="empty"><h3>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum imóvel nesses filtros" : "Seu radar está pronto para começar"}</h3><p>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Experimente outra busca ou limpe os filtros para ver os demais anúncios." : "Configure a coleta dos portais em Fontes e atualização para trazer anúncios reais ao radar. Você também pode importar um arquivo ou conectar um feed."}</p><a href="#settings" data-settings-link="sources">Configurar coleta e fontes →</a><p><button data-reset>Limpar filtros</button></p></div>`}</div><div id="radar-more" class="pagination" aria-live="polite">${radarLoaded < radarTotal ? '<button type="button" data-load-more>Carregar mais imóveis</button>' : "<span>Todos os imóveis desta busca foram exibidos.</span>"}</div></section><aside class="rail"><div class="daily"><p class="eyebrow">SUA DECISÃO, COM CONTEXTO</p><h2>Preço bom precisa de evidência.</h2><p>Avaliação de qualidade, aderência pessoal e preço relativo são medidas diferentes. Poucos comparáveis? A estimativa fica pendente.</p><a href="#alerts">Ver notificações →</a></div><div class="subtle">Anúncios importados não se atualizam sozinhos. Em Fontes e atualização, confira quais coletas estão ativas, suas falhas e a saúde da rotina diária.</div></aside></div>`
+      )}</select><button>Buscar</button></form><p class="small">Sem indicação de planta ou obra, o imóvel é classificado como pronto. Confirme a fase no anúncio.</p><label class="small"><input id="apply-profile" type="checkbox" ${state.apply ? "checked" : ""}> Aplicar minha busca</label><p class="listing-count">${r.total} imóveis · atualização: ${date(r.last_updated)}</p><div id="radar-list">${r.items.length ? r.items.map((p) => card(p, state.compare)).join("") : `<div class="empty"><h3>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Nenhum imóvel nesses filtros" : "Seu radar está pronto para começar"}</h3><p>${state.q || state.apply || state.tab !== "all" || state.construction !== "all" ? "Experimente outra busca ou limpe os filtros para ver os demais anúncios." : "Configure a coleta dos portais em Fontes e atualização para trazer anúncios reais ao radar. Você também pode importar um arquivo ou conectar um feed."}</p><a href="#settings" data-settings-link="sources">Configurar coleta e fontes →</a><p><button data-reset>Limpar filtros</button></p></div>`}</div><div id="radar-more" class="pagination" aria-live="polite">${radarLoaded < radarTotal ? '<button type="button" data-load-more>Carregar mais imóveis</button>' : "<span>Todos os imóveis desta busca foram exibidos.</span>"}</div></section><aside class="rail"><div class="daily"><p class="eyebrow">SUA DECISÃO, COM CONTEXTO</p><h2>Preço bom precisa de evidência.</h2><p>Avaliação de qualidade, aderência pessoal e preço relativo são medidas diferentes. Poucos comparáveis? A estimativa fica pendente.</p><a href="#alerts">Ver notificações →</a></div><div class="subtle">Anúncios importados não se atualizam sozinhos. Em Fontes e atualização, confira quais coletas estão ativas, suas falhas e a saúde da rotina diária.</div></aside></div>`
   );
 }
 async function detail(id) {
@@ -313,8 +311,8 @@ async function detail(id) {
         "Fase do imóvel",
         {
           off_plan: "Na planta",
-          under_construction: "Em construção",
-          ready: "Pronto para morar",
+          under_construction: "Na planta / em construção",
+          ready: "Pronto",
           unknown: "Não informada",
         }[p.construction_status] || "Não informada",
       ],
@@ -705,7 +703,7 @@ async function createAlert() {
   dialog.dataset.mode = "alert";
   lastDetailFocus = document.activeElement;
   document.querySelector("#detail-content").innerHTML =
-    `<div class="dialog-header"><h2>Criar alerta desta busca</h2><button data-close>Fechar</button></div><form id="new-alert-form">${field("alert_name", "Nome do alerta", state.profile.name || "Minha busca", "text", 'required maxlength="100"')}<p><b>Critérios ativos:</b> até ${money(snapshot.profile.budget_max)} · ${esc(snapshot.q || "Todas as palavras")} · ${esc({ all: "Todas as fases", off_plan: "Na planta", under_construction: "Em construção", ready: "Pronto para morar", unknown: "Fase não informada" }[snapshot.construction])}.</p><p>Os imóveis atuais formam sua lista inicial. Você receberá notificações quando outros imóveis corresponderem a estes critérios.</p><p>O alerta guarda uma cópia dos filtros de compra, da fase e da busca textual. Alterar o Radar depois não muda este alerta.</p><button class="primary">Ativar alerta</button></form>`;
+    `<div class="dialog-header"><h2>Criar alerta desta busca</h2><button data-close>Fechar</button></div><form id="new-alert-form">${field("alert_name", "Nome do alerta", state.profile.name || "Minha busca", "text", 'required maxlength="100"')}<p><b>Critérios ativos:</b> até ${money(snapshot.profile.budget_max)} · ${esc(snapshot.q || "Todas as palavras")} · ${esc({ all: "Todas as fases", off_plan: "Na planta", under_construction: "Na planta / em construção", ready: "Pronto", unknown: "Fase não informada" }[snapshot.construction])}.</p><p>Os imóveis atuais formam sua lista inicial. Você receberá notificações quando outros imóveis corresponderem a estes critérios.</p><p>O alerta guarda uma cópia dos filtros de compra, da fase e da busca textual. Alterar o Radar depois não muda este alerta.</p><button class="primary">Ativar alerta</button></form>`;
   bind(dialog);
   dialog.showModal();
   dialog.querySelector("#new-alert-form").onsubmit = (e) => {

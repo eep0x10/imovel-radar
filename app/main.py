@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__, storage, saved_searches
+from .construction import normalize_phase
 from .domain import simulate_budget
 from .ingestion import parse_upload
 from .schemas import AccountUpdate, SavedSearchCreate, SavedSearchUpdate, AlertUpdate, Budget, CommitPreview, Login, Profile, PortalCreate, Register, SourceCreate, SourceUpdate, Tracking
@@ -174,7 +175,7 @@ def properties(user: User, q: str = Query(default="", max_length=200), sort: str
         "price_drops": sum((p["price_change"] or 0) < 0 for p in items), "saved": sum(p["saved"] for p in items)}
     last_updated = max((p["imported_at"] for p in items), default=None)
     filtered = [p for p in items if (not saved or p["saved"]) and (not drops or (p["price_change"] or 0) < 0)
-        and (construction == "all" or p["construction_status"] == construction)
+        and (construction == "all" or p["construction_status"] == normalize_phase(construction))
         and (not apply_profile or p["evaluation"]["eligible"])
         and (not q or q.casefold() in " ".join(str(p.get(k) or "") for k in ("title", "address", "neighborhood", "city", "source")).casefold())]
     if sort == "price":

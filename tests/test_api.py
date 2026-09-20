@@ -183,7 +183,7 @@ def test_feed_refresh_failure_preserves_snapshot_and_last_success(client, monkey
     assert client.post(f"/api/sources/{sid}/refresh", headers=alice).status_code in (422, 502)
     assert client.get("/api/properties", headers=alice).json()["items"] == before
 
-def test_construction_filter_keeps_unknown_separate(client):
+def test_construction_filter_groups_plan_and_defaults_ready(client):
     headers = account(client)
     commit(client, headers, [
         listing(external_id='plan', title='Apartamento na planta'),
@@ -191,11 +191,11 @@ def test_construction_filter_keeps_unknown_separate(client):
         listing(external_id='ready', title='Apartamento pronto para morar'),
         listing(external_id='unspecified', title='Apartamento com planta ampla'),
     ])
-    for phase, external_id in [('off_plan', 'plan'), ('under_construction', 'building'), ('ready', 'ready'), ('unknown', 'unspecified')]:
-        response = client.get('/api/properties', headers=headers, params={'construction': phase, 'page_size': 1})
+    for phase, expected in [('off_plan', {'plan','building'}), ('under_construction', {'plan','building'}), ('ready', {'ready','unspecified'}), ('unknown', {'ready','unspecified'})]:
+        response = client.get('/api/properties', headers=headers, params={'construction': phase})
         assert response.status_code == 200
-        assert response.json()['total'] == 1
-        assert response.json()['items'][0]['external_id'] == external_id
+        assert response.json()['total'] == 2
+        assert {p['external_id'] for p in response.json()['items']} == expected
     assert client.get('/api/properties', headers=headers).json()['total'] == 4
     assert client.get('/api/properties?construction=invalid', headers=headers).status_code == 422
 
@@ -203,7 +203,7 @@ def test_construction_filter_keeps_unknown_separate(client):
 def test_construction_does_not_guess_from_generic_or_negated_title():
     from app.construction import construction_status
     for title in ['Apartamento novo', 'Lançamento de oferta', 'Não é na planta', 'Planta com 2 quartos']:
-        assert construction_status({'title': title}) == 'unknown'
+        assert construction_status({'title': title}) == 'ready'
     assert construction_status({'title': 'Na planta', 'construction_status': 'ready'}) == 'ready'
 
 @pytest.mark.parametrize('extra', [
@@ -231,3 +231,11 @@ def test_export_keeps_legacy_alert_history_separate(client):
     assert exported['historical_alerts']
     assert exported['notifications'] == []
     assert all(a['kind'] != 'saved_search_match' for a in exported['historical_alerts'])
+
+
+def test_construction_description_and_unrelated_negation():
+    from app.construction import construction_status
+    assert construction_status({'description': 'Apartamento na planta, sem vaga'}) == 'under_construction'
+    assert construction_status({'title': 'Sem vaga, em construção'}) == 'under_construction'
+    assert construction_status({'construction_status': 'off_plan'}) == 'under_construction'
+    assert construction_status({}) == 'ready'

@@ -2,6 +2,7 @@
 import json
 
 from . import storage
+from .construction import normalize_phase
 from .domain import evaluate_property
 from .sale_scope import rental_listing
 
@@ -28,7 +29,7 @@ def reconcile(conn, user_id, search_id=None, baseline=False):
         for item in items:
             if rental_listing(item) or item.get('status') in ('inactive', 'unavailable', 'sold'):
                 continue
-            if search['construction'] != 'all' and item['construction_status'] != search['construction']:
+            if search['construction'] != 'all' and item['construction_status'] != normalize_phase(search['construction']):
                 continue
             if search['q'] and search['q'].casefold() not in ' '.join(str(item.get(k) or '') for k in ('title', 'address', 'neighborhood', 'city', 'source')).casefold():
                 continue
