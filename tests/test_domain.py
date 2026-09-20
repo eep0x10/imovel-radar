@@ -112,6 +112,26 @@ def test_combined_cost_unknown_period_is_pending_not_monthly_approval():
     assert monthly_cost({"combined_monthly_cost": 500, "combined_cost_period": "monthly"}) == 500
 
 
+@pytest.mark.parametrize('costs,eligible,pending', [
+    ({'condo_fee': 630, 'property_tax': 1200, 'tax_period': 'unknown'}, False, False),
+    ({'condo_fee': 400, 'property_tax': 1200, 'tax_period': 'unknown'}, True, True),
+    ({'condo_fee': None, 'property_tax': 7200, 'tax_period': 'annual'}, False, False),
+    ({'condo_fee': None, 'property_tax': 600, 'tax_period': 'monthly'}, False, False),
+    ({'condo_fee': 580, 'property_tax': None}, True, True),
+])
+def test_known_cost_lower_bound_can_disprove_budget_without_inventing_total(costs, eligible, pending):
+    property = home(**costs)
+    assert monthly_cost(property) is None
+    result = evaluate_property(property, [], {'monthly_max': 580}, NOW)
+    assert result['eligible'] is eligible
+    assert ('Despesas mensais máximas' in result['pending_requirements']) is pending
+    assert result['fit_coverage'] == (0 if pending else 100)
+    if not eligible:
+        assert any('pelo menos' in reason for reason in result['reasons'])
+        assert any('Não atende: Despesas mensais máximas' in reason for reason in result['reasons'])
+    assert monthly_cost(property) is None
+
+
 @pytest.mark.parametrize("profile,changes,label", [
     ({"budget_min": 250000}, {"price": 200000}, "Preço mínimo"),
     ({"bathrooms_min": 2}, {"bathrooms": 1}, "Banheiros mínimos"),

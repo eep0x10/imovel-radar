@@ -71,6 +71,18 @@ def evaluate_property(property, peers, profile, now=None):
             continue
         applicable_requirements += 1
         value = monthly_cost(property) if field == "monthly_cost" else _number(property.get(field))
+        if field == "monthly_cost" and value is None:
+            # A known component may disprove the ceiling without establishing
+            # the unknown total. Never treat this lower bound as monthly_cost().
+            condo = _number(property.get("condo_fee"))
+            tax = _number(property.get("property_tax"))
+            period = property.get("tax_period")
+            lower_bound = max(0, condo or 0)
+            if tax is not None and tax >= 0 and period in ("monthly", "annual"):
+                lower_bound += tax / (12 if period == "annual" else 1)
+            if lower_bound > limit:
+                value = lower_bound
+                reasons.append(f"Despesas mensais conhecidas somam pelo menos {lower_bound:g}; total ainda desconhecido")
         if field == "floor" and value is None:
             lower = _number(property.get("floor_min_reported"))
             upper = _number(property.get("floor_max_reported"))
