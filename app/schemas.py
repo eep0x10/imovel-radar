@@ -61,7 +61,7 @@ class SearchBounds(StrictModel):
 
 
 class PortalCreate(StrictModel):
-    portal: Literal["quintoandar", "loft", "vivareal", "olx"]
+    portal: Literal["quintoandar", "loft"]
 
 
 class Profile(StrictModel):

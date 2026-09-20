@@ -10,7 +10,7 @@ from contextlib import closing
 from datetime import datetime, timedelta, timezone
 
 from . import storage
-from .domain import evaluate_property
+from .domain import evaluate_property, evaluate_many
 from .sale_scope import rental_listing
 
 
@@ -179,7 +179,8 @@ def enrich_all(conn, user_id):
         prices = histories.get(item["id"], [])
         item["price_change"] = latest_price_change(item["price"], [row["price"] for row in prices])
         item["price_change_30d"] = recent_price_change(prices)
-        item["evaluation"] = evaluate_property(item, items, profile)
+    for item, evaluation in zip(items, evaluate_many(items, profile)):
+        item["evaluation"] = evaluation
     return items
 
 
@@ -232,7 +233,7 @@ def renew_lock(name, owner, minutes=15):
         return conn.execute("UPDATE locks SET expires_at=? WHERE name=? AND owner=?", (until, name, owner)).rowcount == 1
 
 
-def refresh_source(user_id, source_id):
+def refresh_source(user_id, source_id, search_profile=None):
     from .ingestion import fetch_feed
     name = f"source:{source_id}"
     owner = acquire_lock(name)
@@ -250,15 +251,11 @@ def refresh_source(user_id, source_id):
         if source["kind"] == "portal":
             from .portal_collectors import collect_portal
             with closing(storage.connect()) as conn:
-                search_profile = profile_for(conn, user_id)
-            portal = {"QuintoAndar": "quintoandar", "Loft": "loft", "VivaReal": "vivareal", "OLX": "olx"}.get(source["name"])
+                search_profile = search_profile if search_profile is not None else profile_for(conn, user_id)
+            portal = {"QuintoAndar": "quintoandar", "Loft": "loft"}.get(source["name"])
             if not portal:
                 raise ValueError("Coletor não disponível para esta fonte")
-            if portal in {"vivareal", "olx"}:
-                from .grupo_collectors import collect_grupo_portal
-                parsed = collect_grupo_portal(portal, search_profile)
-            else:
-                parsed = collect_portal(portal, search_profile)
+            parsed = collect_portal(portal, search_profile)
         else:
             parsed = fetch_feed(source["url"])
         if parsed.get("errors"):

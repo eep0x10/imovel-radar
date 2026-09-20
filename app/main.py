@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -28,8 +28,8 @@ from .services import detail, enrich_all, ingest, profile_for, refresh_source
 
 MAX_UPLOAD = 10 * 1024 * 1024
 PORTALS = [("QuintoAndar", "https://www.quintoandar.com.br"), ("Loft", "https://loft.com.br"),
-    ("ZAP Imóveis", "https://www.zapimoveis.com.br"), ("VivaReal", "https://www.vivareal.com.br"),
-    ("OLX", "https://www.olx.com.br/imoveis"), ("Imovelweb", "https://www.imovelweb.com.br")]
+    ("ZAP Imóveis", "https://www.zapimoveis.com.br"),
+    ("Imovelweb", "https://www.imovelweb.com.br")]
 
 
 @asynccontextmanager
@@ -170,6 +170,7 @@ def properties(user: User, q: str = Query(default="", max_length=200), sort: str
                apply_profile: bool = False, page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=100)):
     with closing(storage.connect()) as conn:
         items = enrich_all(conn, user["id"])
+    q = q.strip()
     today = datetime.now(timezone.utc).date().isoformat()
     summary = {"total": len(items), "new": sum(bool(p.get("first_seen") and p["first_seen"].startswith(today)) for p in items),
         "price_drops": sum((p["price_change"] or 0) < 0 for p in items), "saved": sum(p["saved"] for p in items)}
@@ -309,11 +310,12 @@ def sources(user: User):
         for item in items:
             run = conn.execute("SELECT summary FROM runs WHERE source_id=? AND user_id=? AND status='success' ORDER BY id DESC LIMIT 1", (item["id"], user["id"])).fetchone()
             item["last_result"] = json.loads(run[0]) if run else None
+    items = [item for item in items if not (item["kind"] == "portal" and item["name"] in {"OLX", "VivaReal"})]
     for item in items:
         item.pop("user_id", None)
         item["enabled"] = bool(item["enabled"])
         item["authorized"] = bool(item["authorized"])
-    enabled_portals = {"QuintoAndar": "quintoandar", "Loft": "loft", "VivaReal": "vivareal", "OLX": "olx"}
+    enabled_portals = {"QuintoAndar": "quintoandar", "Loft": "loft"}
     catalog = [{"name": name, "url": url, "portal": enabled_portals.get(name),
                 "supported": name in enabled_portals,
                 "status": "available" if name in enabled_portals else "access_blocked",
@@ -323,7 +325,7 @@ def sources(user: User):
 
 @app.post("/api/sources/portal", status_code=201)
 def add_portal(payload: PortalCreate, user: User):
-    name, url = {"quintoandar": PORTALS[0], "loft": PORTALS[1], "vivareal": PORTALS[3], "olx": PORTALS[4]}[payload.portal]
+    name, url = {"quintoandar": PORTALS[0], "loft": PORTALS[1]}[payload.portal]
     with storage.transaction() as conn:
         conn.execute("INSERT INTO sources(user_id,name,kind,url,enabled,authorized,status,created_at) VALUES(?,?,'portal',?,1,1,'pending',?) ON CONFLICT(user_id,name,kind) DO UPDATE SET enabled=1,authorized=1", (user["id"], name, url, storage.now_iso()))
         sid = conn.execute("SELECT id FROM sources WHERE user_id=? AND name=? AND kind='portal'", (user["id"], name)).fetchone()[0]
@@ -352,6 +354,8 @@ def update_source(sid: int, payload: SourceUpdate, user: User):
             row = conn.execute("SELECT * FROM sources WHERE id=? AND user_id=? AND kind IN ('feed','portal')", (sid, user["id"])).fetchone()
             if not row:
                 raise HTTPException(404, "Fonte não encontrada")
+            if row["kind"] == "portal" and row["name"] in {"OLX", "VivaReal"}:
+                raise HTTPException(422, "Esta fonte foi removida")
             if payload.enabled is not None:
                 conn.execute("UPDATE sources SET enabled=? WHERE id=?", (payload.enabled, sid))
             if payload.name is not None:
@@ -371,6 +375,20 @@ def refresh_one(sid: int, user: User):
         return refresh_source(user["id"], sid)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
+
+
+@app.post("/api/search", status_code=202)
+def start_search(payload: Profile, background: BackgroundTasks, user: User):
+    from . import search_jobs
+    job = search_jobs.enqueue(user["id"], payload.model_dump())
+    background.add_task(search_jobs.drain, user["id"])
+    return job
+
+
+@app.get("/api/search")
+def search_status(user: User):
+    from . import search_jobs
+    return search_jobs.status(user["id"])
 
 
 @app.post("/api/refresh")

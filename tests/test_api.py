@@ -239,3 +239,19 @@ def test_construction_description_and_unrelated_negation():
     assert construction_status({'title': 'Sem vaga, em construção'}) == 'under_construction'
     assert construction_status({'construction_status': 'off_plan'}) == 'under_construction'
     assert construction_status({}) == 'ready'
+
+def test_search_api_uses_submitted_profile_and_isolates_accounts(client, monkeypatch):
+    from app import search_jobs
+    a, b = account(client, 'search-a'), account(client, 'search-b')
+    calls = []
+    monkeypatch.setattr(search_jobs, 'drain', lambda uid: calls.append(uid))
+    old = client.get('/api/profile', headers=a).json()
+    response = client.post('/api/search', headers=a, json={**old, 'area_min': 70, 'area_max': None})
+    assert response.status_code == 202
+    assert response.json()['profile']['area_min'] == 70
+    assert response.json()['state'] == 'error'  # No sources: never pretend success.
+    assert client.get('/api/search', headers=b).json() is None
+    assert client.get('/api/profile', headers=a).json() == old
+    assert client.post('/api/search', headers=a, json={**old, 'area_min':100, 'area_max':70}).status_code == 422
+    assert client.get('/api/search').status_code == 401
+    assert len(calls) == 1

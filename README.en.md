@@ -14,7 +14,7 @@ A local home-buying workspace: collect listings, track asking prices, compare pr
 
 Python 3.11+. On Windows run `scripts/run.ps1`; on other platforms create a virtual environment, install `requirements.lock` and run `python run.py`. Open http://127.0.0.1:8766 and create an account (minimum 8-character password).
 
-Set your preferences, enable QuintoAndar, Loft, VivaReal and OLX in Sources, and run the first collection. The worker checks the daily schedule while the application is running. Paginated public search collection reports actual coverage and failures. ZAP and Imovelweb currently block HTTP collection and remain unconnected. JSON/CSV/VRSync feeds and spreadsheet imports are supported.
+Set your preferences, enable QuintoAndar, Loft, VivaReal in Sources, and run the first collection. The worker checks the daily schedule while the application is running. Paginated public search collection reports actual coverage and failures. ZAP and Imovelweb currently block HTTP collection and remain unconnected. JSON/CSV/VRSync feeds and spreadsheet imports are supported.
 
 ## Evidence before conclusions
 
@@ -30,4 +30,4 @@ Independent project, unaffiliated with listing portals. Email password recovery,
 
 ## Integrated Radar and saved-search notifications
 
-Filters live directly in Radar and save automatically. Compare listings in a dialog without leaving the results, save favorites in My journey, and create a notification rule from the current search. Existing matches establish a baseline; only new matches produce notifications, without duplicates on repeated imports. Each rule keeps its own criteria snapshot. Account details, sources, imports and diagnostics are grouped in Settings.
+Filters live directly in Radar and save automatically. Editing filters narrows stored listings; Search sources starts a durable background collection with the current criteria and per-source progress. Saved alerts collect with their own frozen profiles. Compare listings in a dialog without leaving the results, save favorites in Radar’s Saved tab, and create a notification rule from the current search. Existing matches establish a baseline; only new matches produce notifications, without duplicates on repeated imports. Each rule keeps its own criteria snapshot. Account details, sources, imports and diagnostics are grouped in Settings.

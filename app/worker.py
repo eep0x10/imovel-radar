@@ -5,6 +5,7 @@ import argparse
 import logging
 import os
 import time
+from threading import Event, Thread
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -75,9 +76,20 @@ def main():
         result = cycle(force=args.force)
         log.info("cycle=%s sources=%d", result["status"], len(result["results"]))
         return
+    stopped = Event()
+    def keep_alive():
+        while not stopped.wait(30):
+            try:
+                heartbeat()
+            except Exception:
+                log.warning("Worker heartbeat temporarily unavailable")
+    Thread(target=keep_alive, daemon=True).start()
     while True:
         try:
             heartbeat()
+            from . import search_jobs, alert_collection
+            search_jobs.process_pending()
+            alert_collection.cycle()
             result = cycle(touch_heartbeat=True)
             if result["results"]:
                 log.info("cycle=%s sources=%d", result["status"], len(result["results"]))

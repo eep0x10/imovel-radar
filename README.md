@@ -25,7 +25,7 @@ Organize sua busca pela casa própria. Acompanhe anúncios, compare preços e cu
 
 | Encontre | Entenda | Organize |
 | :--- | :--- | :--- |
-| Coleta paginada de QuintoAndar, Loft, VivaReal e OLX; feeds e importações CSV, JSON, XLSX e XML VRSync. | Preço/m², comparáveis recentes, histórico de preços, custo mensal e simulação SAC/Price. | Conta privada, favoritos, comparação, visitas, checklist, avaliações e notas. |
+| Coleta paginada de QuintoAndar e Loft; feeds e importações CSV, JSON, XLSX e XML VRSync. | Preço/m², comparáveis recentes, histórico de preços, custo mensal e simulação SAC/Price. | Conta privada, favoritos, comparação, visitas, checklist, avaliações e notas. |
 
 ```mermaid
 flowchart LR
@@ -60,11 +60,13 @@ python3 -m venv .venv
 </details>
 
 1. No **Radar**, configure orçamento, metragem, quartos, banheiros, vaga, andar e preferência de metrô; alterações são aplicadas automaticamente.
-2. Em **Configurações → Fontes e atualização**, ative QuintoAndar, Loft, VivaReal e OLX e execute a primeira coleta.
-3. Consulte anúncios no radar. Use **Aplicar minha busca** para restringir aos critérios e examine pendências.
-4. Compare imóveis sem sair da lista e salve favoritos em **Minha jornada**.
+2. Em **Configurações → Fontes e atualização**, ative QuintoAndar e Loft e execute a primeira coleta.
+3. Clique em **Pesquisar nas fontes** para consultar os portais com os filtros atuais. A coleta ocorre em segundo plano, com progresso e falhas por fonte; resultados aparecem sem recarregar a página. Editar filtros sozinho refina os anúncios já coletados. Consulte anúncios no radar. Use **Aplicar minha busca** para restringir aos critérios e examine pendências.
+4. Compare imóveis sem sair da lista e salve favoritos na aba **Salvos** do Radar.
 5. Use **Criar alerta desta busca** para receber notificações apenas de novos imóveis compatíveis; os anúncios existentes formam a lista inicial, sem avisos retroativos.
 6. Em **Configurações**, gerencie nome da conta, fontes, importações, diagnósticos e exportação.
+
+As buscas salvas consultam as fontes usando seus próprios critérios, mesmo quando os filtros do Radar mudam. A primeira coleta é iniciada pelo worker; depois roda diariamente. Falhas têm nova tentativa após uma hora. A cobertura pode ser parcial por limites ou bloqueios dos portais.
 
 O processo inicia API e worker. Por padrão, a rotina diária roda às 7h de `America/Sao_Paulo`. O computador e a aplicação precisam estar ligados. Não há coleta se as fontes estiverem pausadas.
 
@@ -76,7 +78,6 @@ O processo inicia API e worker. Por padrão, a rotina diária roda às 7h de `Am
 | Loft | Coleta da resposta pública utilizada pela busca | Mesmos cuidados; impostos sem periodicidade comprovada ficam desconhecidos |
 | Feed próprio | URL JSON, CSV ou XML VRSync | Validação de rede, tamanho, formato e autorização da fonte |
 | Planilhas | Prévia e importação de XLSX, CSV e JSON | Sem atualização automática do arquivo original |
-| VivaReal e OLX | Leitura de dados estruturados das páginas públicas | Amostra paginada; bairros e coordenadas podem estar ausentes; bloqueios são visíveis |
 | ZAP e Imovelweb | Acesso HTTP bloqueado na verificação atual | Importação de arquivo ou feed disponível; sem coletor ativo |
 
 Os coletores não representam parceria ou API oficial. A cobertura informada corresponde às páginas efetivamente lidas. Nenhuma ausência em uma coleta parcial marca um anúncio como vendido. Veja [contrato das fontes](docs/SOURCES.md).

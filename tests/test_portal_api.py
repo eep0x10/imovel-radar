@@ -8,7 +8,7 @@ def test_eight_character_password_and_portal_isolation(client, monkeypatch):
     a = {'Authorization':'Bearer '+registered.json()['token']}
     b = account(client, 'other')
     catalog = client.get('/api/sources', headers=a).json()['catalog']
-    assert {x['portal'] for x in catalog if x['supported']} == {'quintoandar','loft','vivareal','olx'}
+    assert {x['portal'] for x in catalog if x['supported']} == {'quintoandar','loft'}
     sid = client.post('/api/sources/portal', headers=a, json={'portal':'quintoandar'}).json()['id']
     assert client.post('/api/sources/portal', headers=a, json={'portal':'quintoandar'}).json()['id'] == sid
     assert client.post(f'/api/sources/{sid}/refresh', headers=b).status_code == 404
@@ -49,13 +49,11 @@ def test_new_portals_use_own_collector_and_billing_status_is_private(client, mon
     state = client.get('/api/status', headers=a).json()['integrations']['google_maps']
     assert state['status'] == 'billing_required'
     assert 'test-maps-key' not in str(state)
-    called = []
-    def collect(portal, profile):
-        called.append(portal)
-        return {'records':[listing(source=portal,external_id=portal)],'errors':[], 'warnings':[], 'coverage':{'complete':False,'pages':1,'reason':'page_limit'}}
-    monkeypatch.setattr(grupo_collectors, 'collect_grupo_portal', collect)
-    for portal in ['vivareal','olx']:
-        sid = client.post('/api/sources/portal', headers=a, json={'portal':portal}).json()['id']
-        assert client.post(f'/api/sources/{sid}/refresh', headers=a).status_code == 200
-    assert called == ['vivareal','olx']
     assert client.post('/api/sources/portal', headers=a, json={'portal':'zap'}).status_code == 422
+
+
+def test_olx_cannot_be_enabled(client):
+    a = account(client)
+    for removed in ('olx','vivareal'):
+        assert client.post('/api/sources/portal', headers=a, json={'portal':removed}).status_code == 422
+    assert all(p['name'] not in {'OLX','VivaReal'} for p in client.get('/api/sources', headers=a).json()['catalog'])

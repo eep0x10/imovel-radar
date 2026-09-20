@@ -1592,3 +1592,27 @@ dialog[data-mode="compare"] {
   background: #fff3e3;
   color: #79470d;
 }
+#search-progress {
+  margin: 16px 0;
+}
+#search-progress .subtle {
+  font-size: 15px;
+  line-height: 1.6;
+}
+#search-progress p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .filter-line {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .filter-line input,
+  .filter-line select,
+  .filter-line button {
+    width: 100%;
+    max-width: none;
+    font-size: 16px;
+    min-height: 44px;
+  }
+}

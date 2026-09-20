@@ -43,6 +43,28 @@ def monthly_cost(property):
     return condo + tax / (12 if period == "annual" else 1)
 
 
+def evaluate_many(properties, profile, now=None):
+    """Evaluate one snapshot using only geographically possible peers.
+
+    Keep original order within each bucket: stable date sorting and duplicate
+    identity selection must behave exactly like the unrestricted peer list.
+    Missing geography cannot establish comparability, even with another unknown.
+    """
+    properties = list(properties)
+    now = _date(now) if now is not None else datetime.now(timezone.utc)
+    if now is None:
+        raise ValueError("Data de avaliação inválida")
+    groups = {}
+    keys = []
+    for property in properties:
+        key = tuple(_text(property.get(field)) for field in ("city", "neighborhood", "property_type"))
+        keys.append(key)
+        if all(key):
+            groups.setdefault(key, []).append(property)
+    return [evaluate_property(property, groups.get(key, ()), profile, now)
+            for property, key in zip(properties, keys)]
+
+
 def evaluate_property(property, peers, profile, now=None):
     now = _date(now) if now is not None else datetime.now(timezone.utc)
     if now is None:

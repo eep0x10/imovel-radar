@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS saved_search_matches(search_id INTEGER NOT NULL REFER
         conn.execute("CREATE INDEX IF NOT EXISTS alerts_search_user ON alerts(user_id,saved_search_id,id)")
         conn.execute("INSERT OR IGNORE INTO schema_versions VALUES(3,?)", (now_iso(),))
         conn.execute("PRAGMA user_version=3")
+        conn.execute("UPDATE sources SET enabled=0,authorized=0 WHERE kind='portal' AND name IN ('OLX','VivaReal')")
 
 
 @contextmanager
