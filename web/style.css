@@ -1449,3 +1449,18 @@ td {
   font-size: 12px;
   color: var(--muted, #627779);
 }
+
+.listing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.listing-actions a {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.card-bottom {
+  flex-wrap: wrap;
+  gap: 12px;
+}
