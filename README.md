@@ -124,3 +124,7 @@ npx --yes prettier@3.6.2 --check "web/**/*.{html,css,js}"
 A API está documentada em `/api/docs`. O padrão de execução é local. Exposição na internet exige HTTPS e operação de backups; recuperação de senha por e-mail e MFA não estão implementados. Alertas são internos ao aplicativo. Não há integração de índices de transações, mapas de risco ou garantia de disponibilidade/cobertura do mercado.
 
 Projeto independente, sem afiliação com os portais. O ranking auxilia a pesquisa e não substitui vistoria, análise documental ou negociação.
+
+## Continuar em outro PC ou com outra IA
+
+Leia [o guia de continuidade](docs/HANDOFF.md) e entregue [AGENTS.md](AGENTS.md) à IA antes de alterar código. O GitHub contém código e documentação; contas, histórico, preferências e segredos exigem transferência privada do snapshot SQLite e da configuração local.
