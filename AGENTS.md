@@ -2,7 +2,7 @@
 
 Este repositório contém o **Imóvel Radar**, aplicação local Python/FastAPI + SQLite com frontend JavaScript e worker. As instruções abaixo são autossuficientes: não dependem de skills, memórias ou caminhos do computador original. Leia [README](README.md), [arquitetura](docs/ARCHITECTURE.md) e [handoff](docs/HANDOFF.md) antes de alterar o projeto. Verifique `git status`, branch e remoto; preserve alterações de outras pessoas.
 
-Instale `requirements.lock` em um ambiente virtual novo; execute `python run.py` a partir da raiz. Consulte o handoff para comandos Windows/Linux, configuração e transferência de dados. O código versionado e o backup privado são entregas separadas; clonar o Git não recupera contas, filtros, favoritos, histórico ou segredos.
+Instale `requirements.lock` em um ambiente virtual novo; execute `python run.py` a partir da raiz. Consulte o handoff para comandos Windows/Linux, configuração e continuidade. Basta clonar o GitHub e instalar as dependências para continuar desenvolvendo, sem pacote do computador anterior. A instalação cria um banco local novo.
 
 Antes de concluir mudanças, execute `python -m pytest -q` e `python scripts/privacy_audit.py`; ao publicar, inclua `--history` na auditoria. Para UI, execute `npx --yes prettier@3.6.2 --check "web/**/*.{html,css,js}"` e confira a superfície real em desktop e 390px. Use dados sintéticos nos testes; não publique banco, `.env`, logs, planilhas ou evidências privadas. Mudanças de dados precisam de backup online e restauração validada; nunca copie um SQLite ativo ignorando WAL/SHM. Registre quais verificações foram de fato executadas.
 

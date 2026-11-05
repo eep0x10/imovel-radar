@@ -127,4 +127,4 @@ Projeto independente, sem afiliação com os portais. O ranking auxilia a pesqui
 
 ## Continuar em outro PC ou com outra IA
 
-Leia [o guia de continuidade](docs/HANDOFF.md) e entregue [AGENTS.md](AGENTS.md) à IA antes de alterar código. O GitHub contém código e documentação; contas, histórico, preferências e segredos exigem transferência privada do snapshot SQLite e da configuração local.
+Leia [o guia de continuidade](docs/HANDOFF.md) e entregue [AGENTS.md](AGENTS.md) à IA antes de alterar código. Basta clonar o repositório, instalar requirements.lock e configurar .env a partir de .env.example. Nenhum pacote de transferência é necessário; a primeira execução cria um banco local novo.
